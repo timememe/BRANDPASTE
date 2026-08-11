@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  codexErrorDetails,
-  removeBackgroundWithCodex,
-} from "../../lib/codex-agent";
+import { codexErrorDetails } from "../../lib/codex-agent";
 import { AspectRatio, generateImage } from "../../lib/generate-image";
 
 export const runtime = "nodejs";
@@ -55,9 +52,9 @@ interface ImageResult {
 }
 
 interface ExistingLayers {
-  layer1Url: string;
-  layer2Url: string;
-  layer3Url: string;
+  layer1Url?: string;
+  layer2Url?: string;
+  layer3Url?: string;
 }
 
 async function generateLayer(
@@ -68,14 +65,14 @@ async function generateLayer(
   return generateImage({ prompt, imageUrls, aspectRatio });
 }
 
-function validExistingLayers(value: unknown): value is ExistingLayers {
-  if (!value || typeof value !== "object") return false;
-  const layers = value as Partial<ExistingLayers>;
-  return (
-    typeof layers.layer1Url === "string" &&
-    typeof layers.layer2Url === "string" &&
-    typeof layers.layer3Url === "string"
-  );
+function readExistingLayers(value: unknown): ExistingLayers {
+  if (!value || typeof value !== "object") return {};
+  const layers = value as Record<string, unknown>;
+  return {
+    layer1Url: typeof layers.layer1Url === "string" ? layers.layer1Url : undefined,
+    layer2Url: typeof layers.layer2Url === "string" ? layers.layer2Url : undefined,
+    layer3Url: typeof layers.layer3Url === "string" ? layers.layer3Url : undefined,
+  };
 }
 
 export async function POST(request: NextRequest) {
@@ -86,6 +83,7 @@ export async function POST(request: NextRequest) {
       characterPrompt,
       worldPrompt,
       mode,
+      generateLayer: requestedGenerateLayer,
       regenerateLayer,
       existingLayers,
     } = body;
@@ -119,80 +117,65 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    if (regenerateLayer !== undefined) {
-      if (
-        (regenerateLayer !== 1 && regenerateLayer !== 2 && regenerateLayer !== 3) ||
-        !validExistingLayers(existingLayers)
-      ) {
-        return NextResponse.json(
-          { error: "A valid layer number and all existing layers are required" },
-          { status: 400 }
-        );
-      }
+    const requestedLayer = requestedGenerateLayer ?? regenerateLayer;
+    if (requestedLayer !== 1 && requestedLayer !== 2 && requestedLayer !== 3) {
+      return NextResponse.json(
+        { error: "generateLayer must be 1, 2, or 3 for a side-scroller world" },
+        { status: 400 }
+      );
+    }
 
-      if (regenerateLayer === 1) {
-        const layer1 = await generateLayer(
-          LAYER1_PROMPT(description),
-          characterReferences
-        );
-        return NextResponse.json({
-          layer1Url: layer1.url,
-          layer2Url: existingLayers.layer2Url,
-          layer3Url: existingLayers.layer3Url,
-          width: layer1.width,
-          height: layer1.height,
-        });
-      }
+    const layers = readExistingLayers(existingLayers);
 
-      if (regenerateLayer === 2) {
-        const raw = await generateLayer(LAYER2_PROMPT(description), [
-          ...characterReferences,
-          existingLayers.layer1Url,
-        ]);
-        const layer2 = await removeBackgroundWithCodex(raw.url);
-        return NextResponse.json({
-          layer1Url: existingLayers.layer1Url,
-          layer2Url: layer2.url,
-          layer3Url: existingLayers.layer3Url,
-          width: layer2.width,
-          height: layer2.height,
-        });
-      }
-
-      const raw = await generateLayer(LAYER3_PROMPT(description), [
-        ...characterReferences,
-        existingLayers.layer1Url,
-        existingLayers.layer2Url,
-      ]);
-      const layer3 = await removeBackgroundWithCodex(raw.url);
+    if (requestedLayer === 1) {
+      const layer1 = await generateLayer(
+        LAYER1_PROMPT(description),
+        characterReferences
+      );
       return NextResponse.json({
-        layer1Url: existingLayers.layer1Url,
-        layer2Url: existingLayers.layer2Url,
-        layer3Url: layer3.url,
-        width: layer3.width,
-        height: layer3.height,
+        layer1Url: layer1.url,
+        width: layer1.width,
+        height: layer1.height,
       });
     }
 
-    const layer1 = await generateLayer(LAYER1_PROMPT(description), characterReferences);
-    const layer2Raw = await generateLayer(LAYER2_PROMPT(description), [
-      ...characterReferences,
-      layer1.url,
-    ]);
-    const layer2 = await removeBackgroundWithCodex(layer2Raw.url);
-    const layer3Raw = await generateLayer(LAYER3_PROMPT(description), [
-      ...characterReferences,
-      layer1.url,
-      layer2.url,
-    ]);
-    const layer3 = await removeBackgroundWithCodex(layer3Raw.url);
+    if (!layers.layer1Url) {
+      return NextResponse.json(
+        { error: "Layer 1 is required before generating this layer" },
+        { status: 400 }
+      );
+    }
 
+    if (requestedLayer === 2) {
+      const layer2 = await generateLayer(LAYER2_PROMPT(description), [
+        ...characterReferences,
+        layers.layer1Url,
+      ]);
+      return NextResponse.json({
+        layer2Url: layer2.url,
+        width: layer2.width,
+        height: layer2.height,
+        needsBackgroundRemoval: true,
+      });
+    }
+
+    if (!layers.layer2Url) {
+      return NextResponse.json(
+        { error: "Layers 1 and 2 are required before generating layer 3" },
+        { status: 400 }
+      );
+    }
+
+    const layer3 = await generateLayer(LAYER3_PROMPT(description), [
+      ...characterReferences,
+      layers.layer1Url,
+      layers.layer2Url,
+    ]);
     return NextResponse.json({
-      layer1Url: layer1.url,
-      layer2Url: layer2.url,
       layer3Url: layer3.url,
-      width: layer1.width,
-      height: layer1.height,
+      width: layer3.width,
+      height: layer3.height,
+      needsBackgroundRemoval: true,
     });
   } catch (error) {
     console.error("Error generating background layers with Codex Agent:", error);

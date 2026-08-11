@@ -91,6 +91,12 @@ interface BackgroundRemovalTarget {
   apply: (result: BackgroundRemovalResult) => void;
 }
 
+interface ParallaxLayers {
+  layer1Url: string | null;
+  layer2Url: string | null;
+  layer3Url: string | null;
+}
+
 interface CharacterCatalogSnapshot {
   gameMode: GameMode;
   characterPrompt: string;
@@ -293,12 +299,13 @@ export default function Home() {
 
   // Step 6: Sandbox
   const [backgroundMode, setBackgroundMode] = useState<"default" | "custom">("default");
-  const [customBackgroundLayers, setCustomBackgroundLayers] = useState<{
-    layer1Url: string | null;
-    layer2Url: string | null;
-    layer3Url: string | null;
-  }>({ layer1Url: null, layer2Url: null, layer3Url: null });
+  const [customBackgroundLayers, setCustomBackgroundLayers] = useState<ParallaxLayers>({
+    layer1Url: null,
+    layer2Url: null,
+    layer3Url: null,
+  });
   const [isGeneratingBackground, setIsGeneratingBackground] = useState(false);
+  const [backgroundGenerationStatus, setBackgroundGenerationStatus] = useState<string | null>(null);
   const [worldPrompt, setWorldPrompt] = useState("");
 
   // Isometric map
@@ -1112,6 +1119,50 @@ export default function Home() {
     }
   };
 
+  const requestParallaxLayer = async (
+    layerNumber: 1 | 2 | 3,
+    description: string,
+    existingLayers?: Partial<ParallaxLayers>
+  ): Promise<string> => {
+    const response = await fetch("/api/generate-background", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        worldPrompt: description,
+        ...(characterImageUrl ? { characterImageUrl } : {}),
+        generateLayer: layerNumber,
+        ...(existingLayers ? { existingLayers } : {}),
+      }),
+    });
+    const data = await readApiResponse(response);
+    const layerUrl = layerNumber === 1
+      ? data.layer1Url
+      : layerNumber === 2
+        ? data.layer2Url
+        : data.layer3Url;
+
+    if (!response.ok || !layerUrl) {
+      throw new Error(data.error || `Failed to generate world layer ${layerNumber}`);
+    }
+    return layerUrl;
+  };
+
+  const removeWorldLayerBackground = async (
+    imageUrl: string,
+    label: string
+  ): Promise<string> => {
+    const response = await fetch("/api/remove-background", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ imageUrl }),
+    });
+    const data = await readApiResponse(response);
+    if (!response.ok || !data.imageUrl) {
+      throw new Error(data.error || `Failed to remove the ${label} background`);
+    }
+    return data.imageUrl;
+  };
+
   const generateBackground = async () => {
     const description = worldPrompt.trim() || characterPrompt.trim();
     if (!description) {
@@ -1123,31 +1174,37 @@ export default function Home() {
     setIsGeneratingBackground(true);
 
     try {
-      const response = await fetch("/api/generate-background", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          worldPrompt: description,
-          ...(characterImageUrl ? { characterImageUrl } : {}),
-        }),
+      setBackgroundGenerationStatus("Generating sky layer (1/5)...");
+      const layer1Url = await requestParallaxLayer(1, description);
+
+      setBackgroundGenerationStatus("Generating middle layer (2/5)...");
+      const rawLayer2Url = await requestParallaxLayer(2, description, {
+        layer1Url,
       });
 
-      const data = await readApiResponse(response);
+      setBackgroundGenerationStatus("Removing middle-layer background (3/5)...");
+      const layer2Url = await removeWorldLayerBackground(rawLayer2Url, "middle layer");
 
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to generate background");
-      }
+      setBackgroundGenerationStatus("Generating foreground layer (4/5)...");
+      const rawLayer3Url = await requestParallaxLayer(3, description, {
+        layer1Url,
+        layer2Url,
+      });
+
+      setBackgroundGenerationStatus("Removing foreground background (5/5)...");
+      const layer3Url = await removeWorldLayerBackground(rawLayer3Url, "foreground layer");
 
       setCustomBackgroundLayers({
-        layer1Url: data.layer1Url,
-        layer2Url: data.layer2Url,
-        layer3Url: data.layer3Url,
+        layer1Url,
+        layer2Url,
+        layer3Url,
       });
       setBackgroundMode("custom");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to generate background");
     } finally {
       setIsGeneratingBackground(false);
+      setBackgroundGenerationStatus(null);
     }
   };
 
@@ -1160,6 +1217,7 @@ export default function Home() {
 
     setError(null);
     setIsGeneratingBackground(true);
+    setBackgroundGenerationStatus("Generating isometric world map...");
 
     try {
       const response = await fetch("/api/generate-background", {
@@ -1183,6 +1241,7 @@ export default function Home() {
       setError(err instanceof Error ? err.message : "Failed to generate isometric map");
     } finally {
       setIsGeneratingBackground(false);
+      setBackgroundGenerationStatus(null);
     }
   };
 
@@ -1196,32 +1255,29 @@ export default function Home() {
     setRegeneratingLayer(layerNumber);
 
     try {
-      const response = await fetch("/api/generate-background", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          worldPrompt: description,
-          ...(characterImageUrl ? { characterImageUrl } : {}),
-          regenerateLayer: layerNumber,
-          existingLayers: customBackgroundLayers,
-        }),
-      });
+      setBackgroundGenerationStatus(`Regenerating layer ${layerNumber}...`);
+      const generatedUrl = await requestParallaxLayer(
+        layerNumber,
+        description,
+        customBackgroundLayers
+      );
+      let finalUrl = generatedUrl;
 
-      const data = await readApiResponse(response);
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to regenerate layer");
+      if (layerNumber !== 1) {
+        setBackgroundGenerationStatus(`Removing layer ${layerNumber} background...`);
+        finalUrl = await removeWorldLayerBackground(generatedUrl, `layer ${layerNumber}`);
       }
 
-      setCustomBackgroundLayers({
-        layer1Url: data.layer1Url,
-        layer2Url: data.layer2Url,
-        layer3Url: data.layer3Url,
+      setCustomBackgroundLayers((current) => {
+        if (layerNumber === 1) return { ...current, layer1Url: finalUrl };
+        if (layerNumber === 2) return { ...current, layer2Url: finalUrl };
+        return { ...current, layer3Url: finalUrl };
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to regenerate layer");
     } finally {
       setRegeneratingLayer(null);
+      setBackgroundGenerationStatus(null);
     }
   };
 
@@ -3368,7 +3424,9 @@ export default function Home() {
                       {isGeneratingBackground && (
                         <div className="loading" style={{ marginTop: "1rem" }}>
                           <AgentSpinner />
-                          <span className="loading-text">Creating 3-layer parallax background (this may take a moment)...</span>
+                          <span className="loading-text">
+                            {backgroundGenerationStatus || "Creating parallax background..."}
+                          </span>
                         </div>
                       )}
                     </>
