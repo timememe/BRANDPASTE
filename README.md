@@ -53,6 +53,8 @@ GITHUB_STORAGE_PREFIX=brandpaste-storage
 
 The timeout is intentionally at least 650 seconds because `/task` is synchronous. HTTP 429 responses use `retryAfterSec` or `retryAt` and are retried automatically.
 
+Because the bridge hostname is proxied by Cloudflare, an individual `/task` request can receive HTTP 524 before Codex reaches the bridge's 10-minute limit. The server does not restart the task in that case: it polls the known output manifest through the repository API until completion, then continues the normal GitHub copy and VPS cleanup flow.
+
 3. Start the app:
 
 ```bash

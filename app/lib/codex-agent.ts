@@ -187,8 +187,39 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function runTask(prompt: string): Promise<string> {
+async function waitForManifestAfterGatewayTimeout(
+  manifestName: string,
+  deadlineMs: number
+): Promise<string> {
+  let lastError: unknown;
+
+  while (Date.now() < deadlineMs) {
+    try {
+      const manifest = await readArtifactManifest(manifestName);
+      return JSON.stringify(manifest);
+    } catch (error) {
+      lastError = error;
+      if (!(error instanceof CodexAgentError) || error.status !== 404) {
+        throw error;
+      }
+    }
+
+    await sleep(Math.min(5_000, Math.max(0, deadlineMs - Date.now())));
+  }
+
+  const detail = lastError instanceof Error ? ` Last check: ${lastError.message}` : "";
+  throw new CodexAgentError(
+    `Codex Agent continued after the gateway timeout but no output appeared within the configured limit.${detail}`,
+    { status: 504 }
+  );
+}
+
+async function runTask(
+  prompt: string,
+  expectedManifestName?: string
+): Promise<string> {
   const config = getConfig();
+  const deadlineMs = Date.now() + config.timeoutMs;
 
   for (let attempt = 0; attempt <= config.maxRetries; attempt += 1) {
     let response: Response;
@@ -206,6 +237,14 @@ async function runTask(prompt: string): Promise<string> {
     }
 
     const body = await parseResponseBody(response);
+
+    // agent.worldorder.online is proxied by Cloudflare, whose read timeout is
+    // shorter than the bridge's 10-minute task timeout. The Codex child keeps
+    // running after a 524, so wait for its known output instead of launching a
+    // duplicate task.
+    if (response.status === 524 && expectedManifestName) {
+      return waitForManifestAfterGatewayTimeout(expectedManifestName, deadlineMs);
+    }
 
     if (response.status === 429) {
       const retryAfterSec =
@@ -655,7 +694,9 @@ Create exactly one polished PNG matching the brief. Target aspect ratio ${aspect
       outputName
     )}`;
 
-    return await finalizeTaskArtifact(await runTask(taskPrompt));
+    return await finalizeTaskArtifact(
+      await runTask(taskPrompt, `${outputName}.manifest.json`)
+    );
   } finally {
     await cleanupRepoPaths(prepared.flatMap((source) => source.cleanupPaths));
   }
@@ -679,7 +720,9 @@ Remove only the background and make it fully transparent. Preserve every sprite,
       outputName
     )}`;
 
-    return await finalizeTaskArtifact(await runTask(taskPrompt));
+    return await finalizeTaskArtifact(
+      await runTask(taskPrompt, `${outputName}.manifest.json`)
+    );
   } finally {
     await cleanupRepoPaths(source.cleanupPaths);
   }
