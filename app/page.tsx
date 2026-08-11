@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback, lazy, Suspense } from "react";
+import type { CatalogEntry, CatalogKind, CatalogResponse } from "./lib/catalog-types";
 
 // Dynamically import sandbox components to avoid SSR issues
 const PixiSandbox = lazy(() => import("./components/PixiSandbox"));
@@ -63,6 +64,60 @@ interface ApiResponsePayload {
   layer2Url: string;
   layer3Url: string;
   mapUrl: string;
+}
+
+interface CharacterCatalogSnapshot {
+  gameMode: GameMode;
+  characterPrompt: string;
+  characterImageUrl: string | null;
+  spriteSheets: {
+    walk: string | null;
+    jump: string | null;
+    attack: string | null;
+    idle: string | null;
+  };
+  backgroundRemoved: {
+    walk: string | null;
+    jump: string | null;
+    attack: string | null;
+    idle: string | null;
+  };
+  isometric: {
+    idle: string | null;
+    idleBackgroundRemoved: string | null;
+    attackDown: string | null;
+    attackUp: string | null;
+    attackSide: string | null;
+    attackDownBackgroundRemoved: string | null;
+    attackUpBackgroundRemoved: string | null;
+    attackSideBackgroundRemoved: string | null;
+  };
+  grids: Record<"walk" | "jump" | "attack" | "idle", {
+    cols: number;
+    rows: number;
+    vertical: number[];
+    horizontal: number[];
+    dimensions: { width: number; height: number };
+  }>;
+  sideScrollerScales: typeof DEFAULT_SIDE_SCROLLER_SCALES;
+  isometricScales: typeof DEFAULT_ISOMETRIC_SCALES;
+  characterYOffset: number;
+}
+
+interface WorldCatalogSnapshot {
+  gameMode: GameMode;
+  character: CharacterCatalogSnapshot;
+  backgroundMode: "default" | "custom";
+  customBackgroundLayers: {
+    layer1Url: string | null;
+    layer2Url: string | null;
+    layer3Url: string | null;
+  };
+  isometricMapUrl: string | null;
+  customBgLayerOffsets: [number, number, number];
+  customBgLayerVisibility: [boolean, boolean, boolean];
+  isometricMapScale: number;
+  characterYOffset: number;
 }
 
 async function readApiResponse(response: Response): Promise<ApiResponsePayload> {
@@ -243,6 +298,18 @@ export default function Home() {
 
   // Error handling
   const [error, setError] = useState<string | null>(null);
+
+  // Persistent project catalog (metadata + GitHub-backed generated assets)
+  const [isCatalogOpen, setIsCatalogOpen] = useState(false);
+  const [catalogTab, setCatalogTab] = useState<CatalogKind>("character");
+  const [catalog, setCatalog] = useState<CatalogResponse>({ characters: [], worlds: [] });
+  const [isCatalogLoading, setIsCatalogLoading] = useState(false);
+  const [isCatalogSaving, setIsCatalogSaving] = useState<CatalogKind | null>(null);
+  const [catalogNotice, setCatalogNotice] = useState<string | null>(null);
+  const [loadedCatalogIds, setLoadedCatalogIds] = useState<{
+    character?: string;
+    world?: string;
+  }>({});
 
   // Initialize walk divider positions when grid changes
   useEffect(() => {
@@ -509,6 +576,7 @@ export default function Home() {
       }
 
       setCharacterImageUrl(data.imageUrl);
+      setLoadedCatalogIds({});
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to generate character");
     } finally {
@@ -1362,6 +1430,271 @@ export default function Home() {
     setCurrentStep(6);
   };
 
+  const createCharacterCatalogSnapshot = (): CharacterCatalogSnapshot => ({
+    gameMode,
+    characterPrompt,
+    characterImageUrl,
+    spriteSheets: {
+      walk: walkSpriteSheetUrl,
+      jump: jumpSpriteSheetUrl,
+      attack: attackSpriteSheetUrl,
+      idle: idleSpriteSheetUrl,
+    },
+    backgroundRemoved: {
+      walk: walkBgRemovedUrl,
+      jump: jumpBgRemovedUrl,
+      attack: attackBgRemovedUrl,
+      idle: idleBgRemovedUrl,
+    },
+    isometric: {
+      idle: isoIdleUrl,
+      idleBackgroundRemoved: isoIdleBgUrl,
+      attackDown: isoAttackDownUrl,
+      attackUp: isoAttackUpUrl,
+      attackSide: isoAttackSideUrl,
+      attackDownBackgroundRemoved: isoAttackDownBgUrl,
+      attackUpBackgroundRemoved: isoAttackUpBgUrl,
+      attackSideBackgroundRemoved: isoAttackSideBgUrl,
+    },
+    grids: {
+      walk: { cols: walkGridCols, rows: walkGridRows, vertical: walkVerticalDividers, horizontal: walkHorizontalDividers, dimensions: walkSpriteSheetDimensions },
+      jump: { cols: jumpGridCols, rows: jumpGridRows, vertical: jumpVerticalDividers, horizontal: jumpHorizontalDividers, dimensions: jumpSpriteSheetDimensions },
+      attack: { cols: attackGridCols, rows: attackGridRows, vertical: attackVerticalDividers, horizontal: attackHorizontalDividers, dimensions: attackSpriteSheetDimensions },
+      idle: { cols: idleGridCols, rows: idleGridRows, vertical: idleVerticalDividers, horizontal: idleHorizontalDividers, dimensions: idleSpriteSheetDimensions },
+    },
+    sideScrollerScales,
+    isometricScales,
+    characterYOffset,
+  });
+
+  const createWorldCatalogSnapshot = (): WorldCatalogSnapshot => ({
+    gameMode,
+    character: createCharacterCatalogSnapshot(),
+    backgroundMode,
+    customBackgroundLayers,
+    isometricMapUrl,
+    customBgLayerOffsets,
+    customBgLayerVisibility,
+    isometricMapScale,
+    characterYOffset,
+  });
+
+  const loadCatalog = async () => {
+    setIsCatalogLoading(true);
+    setCatalogNotice(null);
+    try {
+      const response = await fetch("/api/catalog", { cache: "no-store" });
+      const data = (await response.json()) as CatalogResponse & { error?: string };
+      if (!response.ok) throw new Error(data.error || "Could not load catalog");
+      setCatalog({ characters: data.characters || [], worlds: data.worlds || [] });
+    } catch (err) {
+      setCatalogNotice(err instanceof Error ? err.message : "Could not load catalog");
+    } finally {
+      setIsCatalogLoading(false);
+    }
+  };
+
+  const openCatalog = () => {
+    setIsCatalogOpen(true);
+    void loadCatalog();
+  };
+
+  const saveCurrentToCatalog = async (kind: CatalogKind) => {
+    const hasWorld = Boolean(
+      isometricMapUrl ||
+      customBackgroundLayers.layer1Url ||
+      customBackgroundLayers.layer2Url ||
+      customBackgroundLayers.layer3Url
+    );
+    if (!characterImageUrl || (kind === "world" && !hasWorld)) return;
+
+    const defaultName = kind === "character"
+      ? characterPrompt.trim().slice(0, 60) || "Untitled character"
+      : `${characterPrompt.trim().slice(0, 48) || "Untitled"} world`;
+    const name = window.prompt(
+      kind === "character" ? "Character name" : "World name",
+      defaultName
+    );
+    if (!name?.trim()) return;
+
+    setIsCatalogSaving(kind);
+    setCatalogNotice(null);
+    try {
+      const snapshot = kind === "character"
+        ? createCharacterCatalogSnapshot()
+        : createWorldCatalogSnapshot();
+      const thumbnailUrl = kind === "character"
+        ? characterImageUrl
+        : isometricMapUrl || customBackgroundLayers.layer2Url || customBackgroundLayers.layer1Url || characterImageUrl;
+      const response = await fetch("/api/catalog", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: loadedCatalogIds[kind],
+          kind,
+          name,
+          thumbnailUrl,
+          snapshot,
+        }),
+      });
+      const data = (await response.json()) as { entry?: CatalogEntry; error?: string };
+      if (!response.ok || !data.entry) {
+        throw new Error(data.error || "Could not save catalog entry");
+      }
+      setLoadedCatalogIds((prev) => ({ ...prev, [kind]: data.entry!.id }));
+      setCatalogTab(kind);
+      await loadCatalog();
+      setCatalogNotice(`${kind === "character" ? "Character" : "World"} saved to project catalog.`);
+    } catch (err) {
+      setCatalogNotice(err instanceof Error ? err.message : "Could not save catalog entry");
+    } finally {
+      setIsCatalogSaving(null);
+    }
+  };
+
+  const applyCharacterCatalogSnapshot = (raw: Partial<CharacterCatalogSnapshot>) => {
+    const sprites = raw.spriteSheets || {} as CharacterCatalogSnapshot["spriteSheets"];
+    const removed = raw.backgroundRemoved || {} as CharacterCatalogSnapshot["backgroundRemoved"];
+    const iso = raw.isometric || {} as CharacterCatalogSnapshot["isometric"];
+    const grids = raw.grids || {} as CharacterCatalogSnapshot["grids"];
+    const safeUrl = (value: unknown) => typeof value === "string" ? value : null;
+    const safeNumber = (value: unknown, fallback: number) =>
+      typeof value === "number" && Number.isFinite(value) ? value : fallback;
+    const safeNumbers = (value: unknown) =>
+      Array.isArray(value) ? value.filter((item): item is number => typeof item === "number" && Number.isFinite(item)) : [];
+    const safeDimensions = (value: unknown) => {
+      const dimensions = value && typeof value === "object" ? value as { width?: unknown; height?: unknown } : {};
+      return {
+        width: safeNumber(dimensions.width, 0),
+        height: safeNumber(dimensions.height, 0),
+      };
+    };
+    const grid = (key: keyof CharacterCatalogSnapshot["grids"]) => {
+      const value = grids[key] || {} as CharacterCatalogSnapshot["grids"][typeof key];
+      return {
+        cols: Math.max(1, Math.round(safeNumber(value.cols, 2))),
+        rows: Math.max(1, Math.round(safeNumber(value.rows, 2))),
+        vertical: safeNumbers(value.vertical),
+        horizontal: safeNumbers(value.horizontal),
+        dimensions: safeDimensions(value.dimensions),
+      };
+    };
+    const walkGrid = grid("walk");
+    const jumpGrid = grid("jump");
+    const attackGrid = grid("attack");
+    const idleGrid = grid("idle");
+
+    const nextCharacterUrl = safeUrl(raw.characterImageUrl);
+    const nextWalk = safeUrl(sprites.walk);
+    const nextJump = safeUrl(sprites.jump);
+    const nextAttack = safeUrl(sprites.attack);
+    const nextIdle = safeUrl(sprites.idle);
+    const nextWalkRemoved = safeUrl(removed.walk);
+    const nextJumpRemoved = safeUrl(removed.jump);
+    const nextAttackRemoved = safeUrl(removed.attack);
+    const nextIdleRemoved = safeUrl(removed.idle);
+
+    setGameMode(raw.gameMode === "isometric" ? "isometric" : "side-scroller");
+    setCharacterPrompt(typeof raw.characterPrompt === "string" ? raw.characterPrompt : "");
+    setCharacterInputMode("text");
+    setInputImageUrl("");
+    setCharacterImageUrl(nextCharacterUrl);
+    setWalkSpriteSheetUrl(nextWalk);
+    setJumpSpriteSheetUrl(nextJump);
+    setAttackSpriteSheetUrl(nextAttack);
+    setIdleSpriteSheetUrl(nextIdle);
+    setWalkBgRemovedUrl(nextWalkRemoved);
+    setJumpBgRemovedUrl(nextJumpRemoved);
+    setAttackBgRemovedUrl(nextAttackRemoved);
+    setIdleBgRemovedUrl(nextIdleRemoved);
+    setIsoIdleUrl(safeUrl(iso.idle));
+    setIsoIdleBgUrl(safeUrl(iso.idleBackgroundRemoved));
+    setIsoAttackDownUrl(safeUrl(iso.attackDown));
+    setIsoAttackUpUrl(safeUrl(iso.attackUp));
+    setIsoAttackSideUrl(safeUrl(iso.attackSide));
+    setIsoAttackDownBgUrl(safeUrl(iso.attackDownBackgroundRemoved));
+    setIsoAttackUpBgUrl(safeUrl(iso.attackUpBackgroundRemoved));
+    setIsoAttackSideBgUrl(safeUrl(iso.attackSideBackgroundRemoved));
+    setWalkGridCols(walkGrid.cols); setWalkGridRows(walkGrid.rows); setWalkSpriteSheetDimensions(walkGrid.dimensions);
+    setJumpGridCols(jumpGrid.cols); setJumpGridRows(jumpGrid.rows); setJumpSpriteSheetDimensions(jumpGrid.dimensions);
+    setAttackGridCols(attackGrid.cols); setAttackGridRows(attackGrid.rows); setAttackSpriteSheetDimensions(attackGrid.dimensions);
+    setIdleGridCols(idleGrid.cols); setIdleGridRows(idleGrid.rows); setIdleSpriteSheetDimensions(idleGrid.dimensions);
+    setSideScrollerScales({ ...DEFAULT_SIDE_SCROLLER_SCALES, ...(raw.sideScrollerScales || {}) });
+    setIsometricScales({ ...DEFAULT_ISOMETRIC_SCALES, ...(raw.isometricScales || {}) });
+    setCharacterYOffset(safeNumber(raw.characterYOffset, 0));
+    setWalkExtractedFrames([]); setJumpExtractedFrames([]); setAttackExtractedFrames([]); setIdleExtractedFrames([]);
+    setIsoIdleFrames([]); setIsoAttackDownFrames([]); setIsoAttackUpFrames([]); setIsoAttackSideFrames([]);
+
+    // Grid initialization effects run after dimensions change, so restore custom dividers last.
+    window.setTimeout(() => {
+      setWalkVerticalDividers(walkGrid.vertical); setWalkHorizontalDividers(walkGrid.horizontal);
+      setJumpVerticalDividers(jumpGrid.vertical); setJumpHorizontalDividers(jumpGrid.horizontal);
+      setAttackVerticalDividers(attackGrid.vertical); setAttackHorizontalDividers(attackGrid.horizontal);
+      setIdleVerticalDividers(idleGrid.vertical); setIdleHorizontalDividers(idleGrid.horizontal);
+    }, 0);
+
+    const hasSprites = Boolean(nextWalk || nextJump || nextAttack || nextIdle);
+    const hasRemoved = Boolean(nextWalkRemoved || nextJumpRemoved || nextAttackRemoved || nextIdleRemoved);
+    setCompletedSteps(new Set([
+      ...(nextCharacterUrl ? [1] : []),
+      ...(hasSprites ? [2] : []),
+      ...(hasRemoved ? [3] : []),
+    ]));
+    setCurrentStep(hasRemoved ? 4 : hasSprites ? 2 : 1);
+  };
+
+  const restoreCatalogEntry = (entry: CatalogEntry) => {
+    if (entry.kind === "character") {
+      applyCharacterCatalogSnapshot(entry.snapshot as unknown as Partial<CharacterCatalogSnapshot>);
+      setLoadedCatalogIds({ character: entry.id });
+    } else {
+      const world = entry.snapshot as unknown as Partial<WorldCatalogSnapshot>;
+      applyCharacterCatalogSnapshot(world.character || {});
+      const layers = world.customBackgroundLayers;
+      setBackgroundMode(world.backgroundMode === "custom" ? "custom" : "default");
+      setCustomBackgroundLayers({
+        layer1Url: typeof layers?.layer1Url === "string" ? layers.layer1Url : null,
+        layer2Url: typeof layers?.layer2Url === "string" ? layers.layer2Url : null,
+        layer3Url: typeof layers?.layer3Url === "string" ? layers.layer3Url : null,
+      });
+      setIsometricMapUrl(typeof world.isometricMapUrl === "string" ? world.isometricMapUrl : null);
+      if (Array.isArray(world.customBgLayerOffsets) && world.customBgLayerOffsets.length === 3) {
+        setCustomBgLayerOffsets(world.customBgLayerOffsets);
+      }
+      if (Array.isArray(world.customBgLayerVisibility) && world.customBgLayerVisibility.length === 3) {
+        setCustomBgLayerVisibility(world.customBgLayerVisibility);
+      }
+      if (typeof world.isometricMapScale === "number") setIsometricMapScale(world.isometricMapScale);
+      if (typeof world.characterYOffset === "number") setCharacterYOffset(world.characterYOffset);
+      setCompletedSteps(new Set([1, 2, 3, 4, 5, 6]));
+      setCurrentStep(6);
+      setLoadedCatalogIds({ world: entry.id });
+    }
+    setError(null);
+    setIsCatalogOpen(false);
+  };
+
+  const removeCatalogEntry = async (entry: CatalogEntry) => {
+    if (!window.confirm(`Delete “${entry.name}” from the catalog? Generated assets will remain in project storage.`)) return;
+    setCatalogNotice(null);
+    try {
+      const response = await fetch(
+        `/api/catalog?kind=${encodeURIComponent(entry.kind)}&id=${encodeURIComponent(entry.id)}`,
+        { method: "DELETE" }
+      );
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(data.error || "Could not delete catalog entry");
+      setLoadedCatalogIds((prev) => ({
+        ...prev,
+        [entry.kind]: prev[entry.kind] === entry.id ? undefined : prev[entry.kind],
+      }));
+      await loadCatalog();
+      setCatalogNotice("Catalog entry deleted. Stored images were kept.");
+    } catch (err) {
+      setCatalogNotice(err instanceof Error ? err.message : "Could not delete catalog entry");
+    }
+  };
+
   return (
     <main className="container">
       <header className="header">
@@ -1370,7 +1703,107 @@ export default function Home() {
           <h1>Sprite Sheet Creator</h1>
         </div>
         <p>Create pixel art sprite sheets with your VPS Codex Agent</p>
+        <button className="btn btn-secondary catalog-open-button" onClick={openCatalog}>
+          <span aria-hidden="true">▦</span> Project Catalog
+        </button>
       </header>
+
+      {isCatalogOpen && (
+        <div className="catalog-overlay" role="presentation" onMouseDown={() => setIsCatalogOpen(false)}>
+          <section
+            className="catalog-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="catalog-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="catalog-header">
+              <div>
+                <h2 id="catalog-title">Project Catalog</h2>
+                <p>Characters, sprite sheets, and worlds stored in the BRANDPASTE GitHub project.</p>
+              </div>
+              <button className="catalog-close" onClick={() => setIsCatalogOpen(false)} aria-label="Close catalog">×</button>
+            </div>
+
+            <div className="catalog-save-actions">
+              <button
+                className="btn btn-primary"
+                disabled={!characterImageUrl || isCatalogSaving !== null}
+                onClick={() => void saveCurrentToCatalog("character")}
+              >
+                {isCatalogSaving === "character" ? "Saving…" : loadedCatalogIds.character ? "Update Character" : "Save Current Character"}
+              </button>
+              <button
+                className="btn btn-success"
+                disabled={
+                  !characterImageUrl ||
+                  !(isometricMapUrl || customBackgroundLayers.layer1Url || customBackgroundLayers.layer2Url || customBackgroundLayers.layer3Url) ||
+                  isCatalogSaving !== null
+                }
+                onClick={() => void saveCurrentToCatalog("world")}
+              >
+                {isCatalogSaving === "world" ? "Saving…" : loadedCatalogIds.world ? "Update World" : "Save Current World"}
+              </button>
+            </div>
+
+            <div className="catalog-tabs" role="tablist" aria-label="Catalog type">
+              <button
+                role="tab"
+                aria-selected={catalogTab === "character"}
+                className={catalogTab === "character" ? "active" : ""}
+                onClick={() => setCatalogTab("character")}
+              >
+                Characters <span>{catalog.characters.length}</span>
+              </button>
+              <button
+                role="tab"
+                aria-selected={catalogTab === "world"}
+                className={catalogTab === "world" ? "active" : ""}
+                onClick={() => setCatalogTab("world")}
+              >
+                Worlds <span>{catalog.worlds.length}</span>
+              </button>
+            </div>
+
+            {catalogNotice && <div className="catalog-notice">{catalogNotice}</div>}
+
+            <div className="catalog-content">
+              {isCatalogLoading ? (
+                <div className="catalog-empty"><AgentSpinner size={38} /><span>Loading project catalog…</span></div>
+              ) : (catalogTab === "character" ? catalog.characters : catalog.worlds).length === 0 ? (
+                <div className="catalog-empty">
+                  <span className="catalog-empty-icon">◇</span>
+                  <strong>No {catalogTab === "character" ? "characters" : "worlds"} saved yet</strong>
+                  <span>Generate one, then use the save button above.</span>
+                </div>
+              ) : (
+                <div className="catalog-grid">
+                  {(catalogTab === "character" ? catalog.characters : catalog.worlds).map((entry) => (
+                    <article className="catalog-card" key={entry.id}>
+                      <div className="catalog-thumbnail">
+                        {entry.thumbnailUrl ? (
+                          <img src={entry.thumbnailUrl} alt="" />
+                        ) : (
+                          <span>◇</span>
+                        )}
+                        {loadedCatalogIds[entry.kind] === entry.id && <span className="catalog-current">Current</span>}
+                      </div>
+                      <div className="catalog-card-body">
+                        <strong title={entry.name}>{entry.name}</strong>
+                        <span>{new Date(entry.updatedAt).toLocaleString()}</span>
+                        <div className="catalog-card-actions">
+                          <button className="btn btn-primary" onClick={() => restoreCatalogEntry(entry)}>Open</button>
+                          <button className="btn btn-secondary catalog-delete" onClick={() => void removeCatalogEntry(entry)}>Delete</button>
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
+      )}
 
       {/* Steps indicator */}
       <div className="steps-indicator">

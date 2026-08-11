@@ -9,7 +9,11 @@
     "CODEX_AGENT_CWD": "/workspace/sprite-sheet-creator-vps",
     "CODEX_AGENT_REPO": "sprite-sheet-creator-vps",
     "CODEX_AGENT_TIMEOUT_MS": "650000",
-    "CODEX_AGENT_MAX_RETRIES": "2"
+    "CODEX_AGENT_MAX_RETRIES": "2",
+    "GITHUB_STORAGE_OWNER": "timememe",
+    "GITHUB_STORAGE_REPO": "BRANDPASTE",
+    "GITHUB_STORAGE_BRANCH": "catalog-data",
+    "GITHUB_STORAGE_PREFIX": "brandpaste-storage"
   },
   "assets": {
     "directory": ".open-next/assets",

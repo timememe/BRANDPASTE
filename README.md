@@ -8,21 +8,23 @@ Sprite sheet generator for 2D pixel-art characters, animations, parallax backgro
 - Character generation from text or an uploaded reference image.
 - Walk, jump, attack, and idle sprite sheets.
 - Three-layer parallax backgrounds and isometric world maps.
+- Persistent character and world catalog backed by the project GitHub repository.
 - Codex-driven background removal with local pixel processing on the VPS.
 - Frame extraction, animation preview, scale controls, and playable sandboxes.
 
 ## Architecture
 
-The browser talks only to the Next.js API routes. Server-side code sends authenticated requests to the Codex bridge and proxies generated PNG artifacts back to the browser:
+The browser talks only to the Next.js API routes. Server-side code sends authenticated requests to the Codex bridge, copies each completed PNG to the `catalog-data` branch of this GitHub repository, and then removes the temporary VPS files:
 
 ```text
 Browser -> Next.js API -> VPS Codex Agent /task
-Browser <- /api/codex-artifact <- VPS repository files
+                         -> GitHub catalog-data/brandpaste-storage
+Browser <- raw GitHub PNG + catalog metadata
 ```
 
-The service token is read only by `app/lib/codex-agent.ts`. It must never use a `NEXT_PUBLIC_*` environment variable or be embedded in client code.
+The service tokens are read only by server-side modules. They must never use a `NEXT_PUBLIC_*` environment variable or be embedded in client code.
 
-Codex writes each PNG plus a JSON manifest and base64 chunks in `/workspace/sprite-sheet-creator-vps`. The local artifact route reconstructs the PNG server-side, so the service token is never sent to the browser.
+Codex temporarily writes each PNG plus a JSON manifest and base64 chunks in `/workspace/sprite-sheet-creator-vps`. The server verifies the chunks, commits the PNG under `brandpaste-storage/assets/`, and deletes the temporary output. Catalog snapshots live under `brandpaste-storage/catalog/` in the same data branch. Application code remains on `main`.
 
 ## Getting Started
 
@@ -42,6 +44,11 @@ CODEX_AGENT_CWD=/workspace/sprite-sheet-creator-vps
 CODEX_AGENT_REPO=sprite-sheet-creator-vps
 CODEX_AGENT_TIMEOUT_MS=650000
 CODEX_AGENT_MAX_RETRIES=2
+GITHUB_STORAGE_TOKEN=replace_with_fine_grained_token
+GITHUB_STORAGE_OWNER=timememe
+GITHUB_STORAGE_REPO=BRANDPASTE
+GITHUB_STORAGE_BRANCH=catalog-data
+GITHUB_STORAGE_PREFIX=brandpaste-storage
 ```
 
 The timeout is intentionally at least 650 seconds because `/task` is synchronous. HTTP 429 responses use `retryAfterSec` or `retryAt` and are retried automatically.
@@ -64,10 +71,11 @@ Build the Workers bundle locally:
 npm run build:cloudflare
 ```
 
-Store `CODEX_AGENT_SERVICE_TOKEN` as a Cloudflare Worker secret, never as a plain Wrangler variable:
+Store both credentials as Cloudflare Worker secrets, never as plain Wrangler variables. The GitHub token needs repository `Contents: Read and write` permission:
 
 ```bash
 npx wrangler secret put CODEX_AGENT_SERVICE_TOKEN
+npx wrangler secret put GITHUB_STORAGE_TOKEN
 ```
 
 Deploy through OpenNext/Wrangler:
@@ -76,7 +84,7 @@ Deploy through OpenNext/Wrangler:
 npm run deploy:cloudflare
 ```
 
-The remaining bridge settings are non-secret runtime variables declared in `wrangler.jsonc`.
+The remaining bridge and catalog settings are non-secret runtime variables declared in `wrangler.jsonc`.
 
 ## Controls
 
@@ -86,7 +94,7 @@ The remaining bridge settings are non-secret runtime variables declared in `wran
 
 ## Tech Stack
 
-- Next.js 14
+- Next.js 15
 - React 18
 - VPS Codex Agent HTTP bridge
 - Sharp on the VPS for deterministic PNG processing

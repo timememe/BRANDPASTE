@@ -2,6 +2,11 @@ import "server-only";
 
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { randomUUID } from "node:crypto";
+import {
+  assetKeyFromUrl,
+  readStoredAsset,
+  storeGeneratedAsset,
+} from "./catalog-storage";
 
 const DEFAULT_BASE_URL = "https://agent.worldorder.online";
 const DEFAULT_CWD = "/workspace/sprite-sheet-creator-vps";
@@ -55,7 +60,7 @@ export interface CodexImageResult {
   url: string;
   width: number;
   height: number;
-  manifest: string;
+  assetKey: string;
 }
 
 interface PreparedSource {
@@ -448,6 +453,16 @@ async function uploadDataUrl(
     throw new CodexAgentError("Uploaded image exceeds the 15 MB limit", { status: 413 });
   }
 
+  return uploadBase64Image(base64, mimeType, jobId, sourceIndex);
+}
+
+async function uploadBase64Image(
+  base64: string,
+  mimeType: string,
+  jobId: string,
+  sourceIndex: number
+): Promise<PreparedSource> {
+
   const fileName = `sprite-bridge-${jobId}-input-${sourceIndex}.${extensionForMimeType(
     mimeType
   )}`;
@@ -483,11 +498,36 @@ async function uploadDataUrl(
   };
 }
 
+async function uploadStoredAsset(
+  key: string,
+  jobId: string,
+  sourceIndex: number
+): Promise<PreparedSource> {
+  const object = await readStoredAsset(key);
+  if (!object) {
+    throw new CodexAgentError("Stored project image was not found", { status: 404 });
+  }
+  if (object.data.byteLength > MAX_INPUT_IMAGE_BYTES) {
+    throw new CodexAgentError("Stored project image exceeds the 15 MB limit", {
+      status: 413,
+    });
+  }
+
+  const mimeType = object.contentType;
+  const base64 = Buffer.from(object.data).toString("base64");
+  return uploadBase64Image(base64, mimeType, jobId, sourceIndex);
+}
+
 async function prepareSource(
   value: string,
   jobId: string,
   sourceIndex: number
 ): Promise<PreparedSource> {
+  const storedAssetKey = assetKeyFromUrl(value);
+  if (storedAssetKey) {
+    return uploadStoredAsset(storedAssetKey, jobId, sourceIndex);
+  }
+
   const localManifest = artifactManifestFromUrl(value);
   if (localManifest) {
     await readArtifactManifest(localManifest);
@@ -554,7 +594,7 @@ After producing the final PNG:
 async function finalizeTaskArtifact(result: string): Promise<CodexImageResult> {
   const reported = parseTaskManifest(result);
   const manifestName = manifestNameFromParts(reported.parts);
-  const stored = await readArtifactManifest(manifestName);
+  const { data, manifest: stored } = await readArtifactBuffer(manifestName);
 
   if (
     JSON.stringify(stored.parts) !== JSON.stringify(reported.parts) ||
@@ -564,11 +604,18 @@ async function finalizeTaskArtifact(result: string): Promise<CodexImageResult> {
     throw new CodexAgentError("Codex Agent artifact manifest verification failed");
   }
 
-  return {
-    url: `/api/codex-artifact?manifest=${encodeURIComponent(manifestName)}`,
+  const asset = await storeGeneratedAsset(new Uint8Array(data), {
     width: stored.width,
     height: stored.height,
-    manifest: manifestName,
+  });
+  const outputName = manifestName.replace(/\.manifest\.json$/, "");
+  await cleanupRepoPaths([manifestName, ...stored.parts, outputName]);
+
+  return {
+    url: asset.url,
+    width: stored.width,
+    height: stored.height,
+    assetKey: asset.key,
   };
 }
 
