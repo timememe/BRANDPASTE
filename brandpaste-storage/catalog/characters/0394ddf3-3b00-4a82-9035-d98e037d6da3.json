@@ -2,10 +2,12 @@
   "schemaVersion": 1,
   "id": "0394ddf3-3b00-4a82-9035-d98e037d6da3",
   "kind": "character",
+  "mode": "side-scroller",
   "name": "Recovered after timeout",
   "thumbnailUrl": "https://raw.githubusercontent.com/timememe/BRANDPASTE/catalog-data/brandpaste-storage/assets/2026/08/1431c30f-5a39-430d-b1ef-1707384fd7ba.png",
+  "animationCount": 0,
   "createdAt": "2026-08-11T09:15:07.654Z",
-  "updatedAt": "2026-08-11T09:15:07.654Z",
+  "updatedAt": "2026-08-11T11:33:43.895Z",
   "snapshot": {
     "sideScrollerScales": {
       "attack": 1.35,
