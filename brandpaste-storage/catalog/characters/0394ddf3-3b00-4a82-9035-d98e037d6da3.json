@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "id": "0394ddf3-3b00-4a82-9035-d98e037d6da3",
+  "kind": "character",
+  "name": "Recovered after timeout",
+  "thumbnailUrl": "https://raw.githubusercontent.com/timememe/BRANDPASTE/catalog-data/brandpaste-storage/assets/2026/08/1431c30f-5a39-430d-b1ef-1707384fd7ba.png",
+  "createdAt": "2026-08-11T09:15:07.654Z",
+  "updatedAt": "2026-08-11T09:15:07.654Z",
+  "snapshot": {
+    "sideScrollerScales": {
+      "attack": 1.35,
+      "jump": 1,
+      "idle": 1,
+      "walk": 1
+    },
+    "grids": {
+      "attack": {
+        "vertical": [],
+        "dimensions": {
+          "height": 0,
+          "width": 0
+        },
+        "cols": 2,
+        "rows": 2,
+        "horizontal": []
+      },
+      "jump": {
+        "vertical": [],
+        "dimensions": {
+          "height": 0,
+          "width": 0
+        },
+        "cols": 2,
+        "rows": 2,
+        "horizontal": []
+      },
+      "idle": {
+        "vertical": [],
+        "dimensions": {
+          "height": 0,
+          "width": 0
+        },
+        "cols": 2,
+        "rows": 2,
+        "horizontal": []
+      },
+      "walk": {
+        "vertical": [],
+        "dimensions": {
+          "height": 0,
+          "width": 0
+        },
+        "cols": 2,
+        "rows": 2,
+        "horizontal": []
+      }
+    },
+    "gameMode": "side-scroller",
+    "isometricScales": {
+      "idle": 1,
+      "attackUp": 1,
+      "walkUp": 1,
+      "attackSide": 1.45,
+      "attackDown": 1,
+      "walkDown": 1,
+      "walkSide": 1
+    },
+    "characterPrompt": "Recovered from the generation that returned HTTP 524",
+    "characterYOffset": 0,
+    "spriteSheets": {
+      "attack": null,
+      "jump": null,
+      "idle": null,
+      "walk": null
+    },
+    "isometric": {
+      "idleBackgroundRemoved": null,
+      "attackSide": null,
+      "attackUp": null,
+      "attackUpBackgroundRemoved": null,
+      "idle": null,
+      "attackDown": null,
+      "attackDownBackgroundRemoved": null,
+      "attackSideBackgroundRemoved": null
+    },
+    "characterImageUrl": "https://raw.githubusercontent.com/timememe/BRANDPASTE/catalog-data/brandpaste-storage/assets/2026/08/1431c30f-5a39-430d-b1ef-1707384fd7ba.png",
+    "backgroundRemoved": {
+      "attack": null,
+      "jump": null,
+      "idle": null,
+      "walk": null
+    }
+  }
+}
