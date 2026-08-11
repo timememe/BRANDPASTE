@@ -4,9 +4,10 @@ Sprite sheet generator for 2D pixel-art characters, animations, parallax backgro
 
 ## Features
 
-- Catalog-first workspace for creating, reopening, and editing characters, animations, and worlds.
-- Side-scroller/isometric tags and filters on characters, sprite sheets, and worlds.
-- Generated sprite sheets remain attached to their character and are browsable as animation assets.
+- Catalog-first workspace for creating, reopening, and editing characters and worlds.
+- Side-scroller/isometric tags and filters on characters, animation capabilities, and worlds.
+- Generated sprite sheets belong to their character and can be added, edited, regenerated, or removed from its catalog card.
+- A separate Animation Types catalog documents the reusable side-scroller and isometric motions that can be generated for compatible characters.
 - The original character-to-sprite-to-background workflow remains available through the classic Creator button.
 - Side-scroller and isometric RPG modes.
 - Character generation from text or an uploaded reference image.
@@ -26,7 +27,7 @@ Browser -> Next.js API -> VPS Codex Agent /task
 Browser <- raw GitHub PNG + catalog metadata
 ```
 
-The app opens on the catalog. Character snapshots contain the generated sprite-sheet URLs, grid settings, and editor state; world snapshots contain their character context plus parallax layers or the isometric map. Older catalog JSON is normalized on read, so entries created before mode and animation metadata were introduced remain usable.
+The app opens on the catalog. Character snapshots contain their generated sprite-sheet URLs, grid settings, and editor state; world snapshots contain their character context plus parallax layers or the isometric map. The Animation Types section is a capability catalog rather than a list of generated PNGs. Older catalog JSON is normalized on read, so entries created before mode and animation metadata were introduced remain usable.
 
 The service tokens are read only by server-side modules. They must never use a `NEXT_PUBLIC_*` environment variable or be embedded in client code.
 

@@ -8,6 +8,7 @@ import type {
   CatalogKind,
   CatalogResponse,
 } from "./catalog-types";
+import { countGeneratedAnimations } from "./animation-catalog";
 
 const DEFAULT_OWNER = "timememe";
 const DEFAULT_REPO = "BRANDPASTE";
@@ -216,20 +217,6 @@ function inferMode(snapshot: Record<string, unknown>, explicit?: unknown): Catal
   return isCatalogGameMode(character.gameMode) ? character.gameMode : "side-scroller";
 }
 
-function inferAnimationCount(snapshot: Record<string, unknown>): number {
-  const character = snapshotRecord(snapshot.character);
-  const source = Object.keys(character).length > 0 ? character : snapshot;
-  const spriteSheets = snapshotRecord(source.spriteSheets);
-  const isometric = snapshotRecord(source.isometric);
-  const spriteCount = ["walk", "jump", "attack", "idle"].filter(
-    (key) => typeof spriteSheets[key] === "string"
-  ).length;
-  const isometricCount = ["idle", "attackDown", "attackUp", "attackSide"].filter(
-    (key) => typeof isometric[key] === "string"
-  ).length;
-  return spriteCount + isometricCount;
-}
-
 function isSafeId(value: string): boolean {
   return /^[0-9a-f-]{36}$/i.test(value);
 }
@@ -313,13 +300,11 @@ function parseCatalogBytes(bytes: Uint8Array): CatalogEntry | null {
       return null;
     }
     const snapshot = value.snapshot as Record<string, unknown>;
+    const mode = inferMode(snapshot, value.mode);
     return {
       ...(value as CatalogEntry),
-      mode: inferMode(snapshot, value.mode),
-      animationCount:
-        typeof value.animationCount === "number" && value.animationCount >= 0
-          ? value.animationCount
-          : inferAnimationCount(snapshot),
+      mode,
+      animationCount: countGeneratedAnimations(snapshot, mode),
     };
   } catch {
     return null;
@@ -387,7 +372,10 @@ export async function saveCatalogEntry(input: {
     mode: inferMode(input.snapshot, input.mode),
     name,
     thumbnailUrl: input.thumbnailUrl,
-    animationCount: inferAnimationCount(input.snapshot),
+    animationCount: countGeneratedAnimations(
+      input.snapshot,
+      inferMode(input.snapshot, input.mode)
+    ),
     createdAt: existing?.createdAt || now,
     updatedAt: now,
     snapshot: input.snapshot,

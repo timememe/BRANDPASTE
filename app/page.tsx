@@ -2,6 +2,11 @@
 
 import { useState, useRef, useEffect, useCallback, lazy, Suspense } from "react";
 import CatalogDashboard from "./components/CatalogDashboard";
+import {
+  animationTypeDefinition,
+  removeCharacterAnimation as removeAnimationFromSnapshot,
+  type AnimationTypeId,
+} from "./lib/animation-catalog";
 import type {
   CatalogEntry,
   CatalogGameMode,
@@ -308,6 +313,7 @@ export default function Home() {
   // Persistent project catalog (metadata + GitHub-backed generated assets)
   const [workspaceView, setWorkspaceView] = useState<"catalog" | "creator">("catalog");
   const [creatorIntent, setCreatorIntent] = useState<"character" | "world" | "classic">("classic");
+  const [requestedAnimationType, setRequestedAnimationType] = useState<AnimationTypeId | null>(null);
   const [catalog, setCatalog] = useState<CatalogResponse>({ characters: [], worlds: [] });
   const [isCatalogLoading, setIsCatalogLoading] = useState(false);
   const [isCatalogSaving, setIsCatalogSaving] = useState<CatalogKind | null>(null);
@@ -802,6 +808,68 @@ export default function Home() {
       else setIsoAttackSideUrl(data.imageUrl);
     } catch (err) {
       setError(err instanceof Error ? err.message : `Failed to regenerate ${dir}`);
+    } finally {
+      setRegeneratingSpriteSheet(null);
+    }
+  };
+
+  const generateCatalogAnimation = async (animationType: AnimationTypeId) => {
+    if (!characterImageUrl) return;
+    const definition = animationTypeDefinition(animationType);
+    if (definition.mode !== gameMode) {
+      setError(`${definition.label} is only available in ${definition.mode} mode.`);
+      return;
+    }
+
+    setError(null);
+    setRegeneratingSpriteSheet(animationType);
+    try {
+      const referenceImageUrls =
+        (animationType === "attack-up" || animationType === "attack-side") && isoAttackDownUrl
+          ? [isoAttackDownUrl]
+          : undefined;
+      const response = await fetch("/api/generate-sprite-sheet", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ characterImageUrl, type: animationType, referenceImageUrls }),
+      });
+      const data = await readApiResponse(response);
+      if (!response.ok || !data.imageUrl) {
+        throw new Error(data.error || `Failed to generate ${definition.label}`);
+      }
+
+      if (animationType === "walk" || animationType === "walk-down") {
+        setWalkSpriteSheetUrl(data.imageUrl);
+        setWalkBgRemovedUrl(null);
+      } else if (animationType === "jump" || animationType === "walk-up") {
+        setJumpSpriteSheetUrl(data.imageUrl);
+        setJumpBgRemovedUrl(null);
+      } else if (animationType === "attack") {
+        setAttackSpriteSheetUrl(data.imageUrl);
+        setAttackBgRemovedUrl(null);
+      } else if (animationType === "idle") {
+        setIdleSpriteSheetUrl(data.imageUrl);
+        setIdleBgRemovedUrl(null);
+      } else if (animationType === "walk-side") {
+        setAttackSpriteSheetUrl(data.imageUrl);
+        setIdleSpriteSheetUrl(data.imageUrl);
+        setAttackBgRemovedUrl(null);
+        setIdleBgRemovedUrl(null);
+      } else if (animationType === "idle-iso") {
+        setIsoIdleUrl(data.imageUrl);
+        setIsoIdleBgUrl(null);
+      } else if (animationType === "attack-down") {
+        setIsoAttackDownUrl(data.imageUrl);
+        setIsoAttackDownBgUrl(null);
+      } else if (animationType === "attack-up") {
+        setIsoAttackUpUrl(data.imageUrl);
+        setIsoAttackUpBgUrl(null);
+      } else if (animationType === "attack-side") {
+        setIsoAttackSideUrl(data.imageUrl);
+        setIsoAttackSideBgUrl(null);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : `Failed to generate ${definition.label}`);
     } finally {
       setRegeneratingSpriteSheet(null);
     }
@@ -1705,6 +1773,45 @@ export default function Home() {
     }
   };
 
+  const deleteCharacterAnimation = async (
+    entry: CatalogEntry,
+    animationType: AnimationTypeId
+  ) => {
+    const definition = animationTypeDefinition(animationType);
+    if (!window.confirm(`Delete ${definition.label} from ${entry.name}? The stored PNG will be kept.`)) return;
+
+    const snapshot = removeAnimationFromSnapshot(entry.snapshot, entry.mode, animationType);
+    setIsCatalogSaving("character");
+    setCatalogNotice(null);
+    try {
+      const response = await fetch("/api/catalog", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: entry.id,
+          kind: entry.kind,
+          mode: entry.mode,
+          name: entry.name,
+          thumbnailUrl: entry.thumbnailUrl,
+          snapshot,
+        }),
+      });
+      const data = (await response.json()) as { entry?: CatalogEntry; error?: string };
+      if (!response.ok || !data.entry) {
+        throw new Error(data.error || "Could not delete character animation");
+      }
+      if (loadedCatalogIds.character === entry.id) {
+        applyCharacterCatalogSnapshot(snapshot as unknown as Partial<CharacterCatalogSnapshot>);
+      }
+      await loadCatalog();
+      setCatalogNotice(`${definition.label} removed from ${entry.name}.`);
+    } catch (err) {
+      setCatalogNotice(err instanceof Error ? err.message : "Could not delete character animation");
+    } finally {
+      setIsCatalogSaving(null);
+    }
+  };
+
   const resetCreator = (mode: CatalogGameMode = "side-scroller") => {
     setCurrentStep(1);
     setCompletedSteps(new Set());
@@ -1747,6 +1854,7 @@ export default function Home() {
     setSideScrollerScales(DEFAULT_SIDE_SCROLLER_SCALES);
     setIsometricScales(DEFAULT_ISOMETRIC_SCALES);
     setLoadedCatalogIds({});
+    setRequestedAnimationType(null);
     setError(null);
   };
 
@@ -1764,12 +1872,17 @@ export default function Home() {
 
   const editCatalogEntry = (
     entry: CatalogEntry,
-    focus?: "animations" | "world"
+    focus?: "animations" | "world",
+    animationType?: AnimationTypeId
   ) => {
     restoreCatalogEntry(entry);
     setCreatorIntent(entry.kind === "world" ? "world" : "character");
-    if (focus === "animations") setCurrentStep(entry.animationCount > 0 ? 2 : 1);
-    if (focus === "world") setCurrentStep(6);
+    setRequestedAnimationType(animationType || null);
+    if (focus === "animations") setCurrentStep(2);
+    if (focus === "world") {
+      setRequestedAnimationType(null);
+      setCurrentStep(6);
+    }
   };
 
   const hasCurrentWorld = Boolean(
@@ -1828,6 +1941,7 @@ export default function Home() {
           onOpenClassicCreator={openClassicCreator}
           onEdit={editCatalogEntry}
           onDelete={(entry) => void removeCatalogEntry(entry)}
+          onDeleteAnimation={(entry, animationType) => void deleteCharacterAnimation(entry, animationType)}
           onSaveCurrent={(kind) => void saveCurrentToCatalog(kind)}
         />
       ) : (
@@ -1835,7 +1949,11 @@ export default function Home() {
       <div className="creator-context-bar">
         <span>{creatorIntent === "world" ? "WORLD CREATOR" : creatorIntent === "character" ? "CHARACTER CREATOR" : "CLASSIC CREATOR"}</span>
         <strong>{gameMode === "isometric" ? "Isometric" : "Side-scroller"}</strong>
-        <small>Generated assets can be saved back to the catalog at any point.</small>
+        <small>
+          {requestedAnimationType
+            ? `Animation task: ${animationTypeDefinition(requestedAnimationType).label}`
+            : "Generated assets can be saved back to the catalog at any point."}
+        </small>
       </div>
 
       {/* Steps indicator */}
@@ -2190,14 +2308,33 @@ export default function Home() {
         <div className="step-container">
           <h2 className="step-title">
             <span className="step-number">2</span>
-            Sprite Sheets Generated
+            Character Sprite Sheets
           </h2>
 
           <p className="description-text">
             {gameMode === "isometric"
-              ? "Directional walk & attack sprite sheets have been generated. If poses don't look right, try regenerating."
-              : "Walk, jump, and attack sprite sheets have been generated. If poses don\u0027t look right, try regenerating."}
+              ? "Add or replace directional walk, idle, and attack sprite sheets for this character."
+              : "Add or replace walk, jump, attack, and idle sprite sheets for this character."}
           </p>
+
+          {requestedAnimationType && animationTypeDefinition(requestedAnimationType).mode === gameMode && (
+            <div className="requested-animation-panel">
+              <div>
+                <span>Selected from Animation Types</span>
+                <strong>{animationTypeDefinition(requestedAnimationType).label}</strong>
+                <small>{animationTypeDefinition(requestedAnimationType).description} Save the character after generation to update the catalog.</small>
+              </div>
+              <button
+                className="btn btn-primary"
+                onClick={() => void generateCatalogAnimation(requestedAnimationType)}
+                disabled={regeneratingSpriteSheet !== null || isGeneratingSpriteSheet || isRemovingBg}
+              >
+                {regeneratingSpriteSheet === requestedAnimationType
+                  ? "Generating..."
+                  : `Generate / replace ${animationTypeDefinition(requestedAnimationType).label}`}
+              </button>
+            </div>
+          )}
 
           {gameMode === "isometric" ? (
             <>
@@ -2220,7 +2357,7 @@ export default function Home() {
                         disabled={isGeneratingSpriteSheet || regeneratingSpriteSheet !== null || isRemovingBg}
                         style={{ fontSize: "0.75rem", padding: "0.25rem 0.5rem", marginTop: "0.5rem", width: "100%" }}
                       >
-                        {regeneratingSpriteSheet === slot ? "Regenerating..." : `Regen`}
+                        {regeneratingSpriteSheet === slot ? "Generating..." : url ? "Regenerate" : "Generate"}
                       </button>
                     </div>
                   );
@@ -2256,7 +2393,7 @@ export default function Home() {
                     disabled={isGeneratingSpriteSheet || regeneratingSpriteSheet !== null || isRemovingBg}
                     style={{ fontSize: "0.75rem", padding: "0.25rem 0.5rem", marginTop: "0.5rem", width: "100%" }}
                   >
-                    {regeneratingSpriteSheet === "idle-iso" ? "Regenerating..." : "Regen"}
+                    {regeneratingSpriteSheet === "idle-iso" ? "Generating..." : isoIdleUrl ? "Regenerate" : "Generate"}
                   </button>
                 </div>
               </div>
@@ -2281,7 +2418,7 @@ export default function Home() {
                         disabled={isGeneratingSpriteSheet || regeneratingSpriteSheet !== null || isRemovingBg}
                         style={{ fontSize: "0.75rem", padding: "0.25rem 0.5rem", marginTop: "0.5rem", width: "100%" }}
                       >
-                        {regeneratingSpriteSheet === dir ? "Regenerating..." : `Regen`}
+                        {regeneratingSpriteSheet === dir ? "Generating..." : url ? "Regenerate" : "Generate"}
                       </button>
                     </div>
                   );
@@ -2312,7 +2449,9 @@ export default function Home() {
                     disabled={isGeneratingSpriteSheet || regeneratingSpriteSheet !== null || isRemovingBg}
                     style={{ fontSize: "0.75rem", padding: "0.25rem 0.5rem", marginTop: "0.5rem", width: "100%" }}
                   >
-                    {regeneratingSpriteSheet === slot ? "Regenerating..." : `Regen ${getSheetLabel(slot)}`}
+                    {regeneratingSpriteSheet === slot
+                      ? "Generating..."
+                      : `${(slot === "walk" ? walkSpriteSheetUrl : slot === "jump" ? jumpSpriteSheetUrl : slot === "attack" ? attackSpriteSheetUrl : idleSpriteSheetUrl) ? "Regenerate" : "Generate"} ${getSheetLabel(slot)}`}
                   </button>
                 </div>
               ))}

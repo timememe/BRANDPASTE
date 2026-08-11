@@ -1345,6 +1345,355 @@ input, textarea {
   border-color: rgba(239, 68, 68, 0.35);
 }
 
+.character-library-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.character-library-card {
+  display: grid;
+  grid-template-columns: minmax(190px, 0.78fr) minmax(0, 1.22fr);
+}
+
+.character-library-card > .library-card-media {
+  grid-row: 1 / span 2;
+  height: 100%;
+  min-height: 340px;
+  border-right: 1px solid var(--border-color);
+}
+
+.character-library-card > .library-card-body {
+  align-self: start;
+}
+
+.character-animation-block {
+  min-width: 0;
+  padding: 0.85rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.character-animation-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
+}
+
+.character-animation-heading > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
+.character-animation-heading strong {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+.character-animation-heading span,
+.character-animation-item span,
+.character-animation-missing > span {
+  color: var(--text-tertiary);
+  font-size: 0.65rem;
+}
+
+.character-animation-heading .btn {
+  width: auto;
+  padding: 0.38rem 0.52rem;
+  font-size: 0.66rem;
+}
+
+.character-animation-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.character-animation-item {
+  min-width: 0;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.018);
+  border: 1px solid var(--border-color);
+  border-radius: 7px;
+}
+
+.character-animation-preview {
+  width: 100%;
+  height: 74px;
+  padding: 0.25rem;
+  overflow: hidden;
+  background:
+    linear-gradient(45deg, rgba(255,255,255,.025) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(255,255,255,.025) 25%, transparent 25%),
+    var(--bg-primary);
+  background-size: 12px 12px;
+  border: none;
+}
+
+.character-animation-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.character-animation-item > div:not(.character-animation-actions) {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.42rem 0.45rem 0.3rem;
+}
+
+.character-animation-item strong {
+  overflow: hidden;
+  color: var(--text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.72rem;
+}
+
+.character-animation-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-top: 1px solid var(--border-color);
+}
+
+.character-animation-actions button {
+  padding: 0.35rem;
+  color: var(--text-tertiary);
+  background: transparent;
+  border: none;
+  font-size: 0.62rem;
+}
+
+.character-animation-actions button + button {
+  border-left: 1px solid var(--border-color);
+}
+
+.character-animation-actions button:hover {
+  color: var(--text-primary);
+  background: rgba(171, 119, 255, 0.06);
+}
+
+.character-animation-actions button.danger:hover {
+  color: var(--error);
+  background: rgba(239, 68, 68, 0.06);
+}
+
+.character-animation-empty {
+  padding: 0.8rem;
+  color: var(--text-tertiary);
+  background: rgba(255, 255, 255, 0.016);
+  border: 1px dashed var(--border-color);
+  border-radius: 7px;
+  font-size: 0.69rem;
+  line-height: 1.5;
+}
+
+.character-animation-missing {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.65rem;
+}
+
+.character-animation-missing > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.character-animation-missing button {
+  padding: 0.28rem 0.45rem;
+  color: var(--fal-purple-light);
+  background: rgba(171, 119, 255, 0.055);
+  border: 1px solid rgba(171, 119, 255, 0.2);
+  border-radius: 999px;
+  font-size: 0.62rem;
+}
+
+.character-animation-missing button:hover {
+  background: rgba(171, 119, 255, 0.12);
+  border-color: rgba(171, 119, 255, 0.42);
+}
+
+.animation-type-intro {
+  display: flex;
+  padding: 0.85rem 1rem;
+  background: linear-gradient(100deg, rgba(171, 119, 255, 0.075), rgba(56, 172, 198, 0.035));
+  border: 1px solid rgba(171, 119, 255, 0.18);
+  border-radius: 9px;
+}
+
+.animation-type-intro > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.animation-type-intro strong {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.animation-type-intro span {
+  color: var(--text-tertiary);
+  font-size: 0.71rem;
+  line-height: 1.5;
+}
+
+.animation-type-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.animation-type-visual {
+  position: relative;
+  display: flex;
+  height: 125px;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 25% 20%, rgba(171, 119, 255, 0.22), transparent 36%),
+    linear-gradient(145deg, #18151f, #101114);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.animation-type-visual.combat {
+  background:
+    radial-gradient(circle at 70% 30%, rgba(239, 68, 68, 0.2), transparent 38%),
+    linear-gradient(145deg, #1d1519, #101114);
+}
+
+.animation-type-visual.state {
+  background:
+    radial-gradient(circle at 50% 25%, rgba(56, 172, 198, 0.2), transparent 38%),
+    linear-gradient(145deg, #111a1d, #101114);
+}
+
+.animation-type-visual > span {
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 2.65rem;
+  text-shadow: 0 0 30px currentColor;
+}
+
+.animation-type-visual small {
+  position: absolute;
+  right: 0.65rem;
+  bottom: 0.55rem;
+  color: var(--text-tertiary);
+  font-size: 0.62rem;
+}
+
+.animation-type-title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.animation-type-title > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.animation-type-title > div span {
+  color: var(--text-tertiary);
+  font-size: 0.65rem;
+}
+
+.library-mode-badge.inline {
+  position: static;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.animation-type-card .library-card-body > p {
+  min-height: 3.1em;
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: 0.7rem;
+  line-height: 1.5;
+}
+
+.animation-type-target {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.35rem;
+  margin-top: 0.25rem;
+}
+
+.animation-type-target label {
+  grid-column: 1 / -1;
+  color: var(--text-tertiary);
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.animation-type-target select {
+  min-width: 0;
+  padding: 0.45rem 0.5rem;
+  color: var(--text-secondary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 0.68rem;
+}
+
+.animation-type-target .btn,
+.animation-type-card .library-card-body > .btn {
+  width: auto;
+  padding: 0.45rem 0.55rem;
+  font-size: 0.66rem;
+}
+
+.requested-animation-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.15rem;
+  padding: 0.85rem 1rem;
+  background: linear-gradient(100deg, rgba(171, 119, 255, 0.1), rgba(56, 172, 198, 0.045));
+  border: 1px solid rgba(171, 119, 255, 0.25);
+  border-radius: 8px;
+}
+
+.requested-animation-panel > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.requested-animation-panel span {
+  color: var(--fal-purple-light);
+  font-size: 0.62rem;
+  font-weight: 750;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.requested-animation-panel strong {
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+.requested-animation-panel small {
+  color: var(--text-tertiary);
+  font-size: 0.68rem;
+  line-height: 1.45;
+}
+
+.requested-animation-panel .btn {
+  width: auto;
+  flex: 0 0 auto;
+}
+
 .animation-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
@@ -1560,8 +1909,33 @@ input, textarea {
 
   .library-grid,
   .animation-grid,
+  .animation-type-grid,
   .world-grid {
     grid-template-columns: 1fr;
+  }
+
+  .character-library-card {
+    grid-template-columns: 1fr;
+  }
+
+  .character-library-card > .library-card-media {
+    grid-row: auto;
+    min-height: 260px;
+    border-right: none;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .character-animation-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .requested-animation-panel {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .requested-animation-panel .btn {
+    width: 100%;
   }
 
   .library-card-actions .btn {
