@@ -1694,6 +1694,67 @@ input, textarea {
   flex: 0 0 auto;
 }
 
+.world-editor-brief {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  margin-bottom: 1.2rem;
+  padding: 1rem;
+  background: linear-gradient(115deg, rgba(56, 172, 198, 0.085), rgba(171, 119, 255, 0.045));
+  border: 1px solid rgba(56, 172, 198, 0.22);
+  border-radius: 9px;
+}
+
+.world-editor-mode {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 0.35rem;
+}
+
+.world-editor-mode button {
+  padding: 0.42rem 0.65rem;
+  color: var(--text-tertiary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 0.7rem;
+}
+
+.world-editor-mode button.active {
+  color: #b9f3ff;
+  background: rgba(56, 172, 198, 0.1);
+  border-color: rgba(56, 172, 198, 0.45);
+}
+
+.world-editor-brief label {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.world-editor-brief textarea {
+  width: 100%;
+  resize: vertical;
+  padding: 0.7rem 0.8rem;
+  color: var(--text-primary);
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--border-color);
+  border-radius: 7px;
+  font: inherit;
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.world-editor-brief textarea:focus {
+  outline: none;
+  border-color: rgba(56, 172, 198, 0.55);
+}
+
+.world-editor-brief small {
+  color: var(--text-tertiary);
+  font-size: 0.65rem;
+}
+
 .sprite-sheet-card {
   min-width: 0;
   padding: 0.55rem;

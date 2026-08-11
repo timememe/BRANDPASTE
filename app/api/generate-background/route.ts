@@ -8,35 +8,41 @@ import { AspectRatio, generateImage } from "../../lib/generate-image";
 export const runtime = "nodejs";
 export const maxDuration = 700;
 
-const LAYER1_PROMPT = (characterPrompt: string) =>
+const LAYER1_PROMPT = (worldPrompt: string) =>
   `Create the SKY/BACKDROP layer for a side-scrolling pixel art game parallax background.
 
-This is for a character: "${characterPrompt}"
+World description: "${worldPrompt}"
 
-Create an environment that fits this character's world. This is the FURTHEST layer: only sky and very distant elements such as distant mountains, clouds, and horizon.
+Create an environment that fits this world. This is the FURTHEST layer: only sky and very distant elements such as distant mountains, clouds, and horizon.
 
-Style: polished 32-bit retro pixel art matching the character. Fill the entire wide panoramic canvas; this layer is fully opaque.`;
+Style: polished 32-bit retro pixel art with a cohesive visual language. Fill the entire wide panoramic canvas; this layer is fully opaque.`;
 
-const LAYER2_PROMPT = `Create the MIDDLE layer of a 3-layer parallax background for a side-scrolling pixel art game.
+const LAYER2_PROMPT = (worldPrompt: string) => `Create the MIDDLE layer of a 3-layer parallax background for a side-scrolling pixel art game.
 
-Reference images show: 1) the character and 2) the already-created sky/backdrop.
+World description: "${worldPrompt}"
+Reference images show the already-created layers and may optionally include a style character.
 
-Create the character's iconic location: recognizable buildings, landmarks, trees, cliffs, or scenery. Elements should fill the frame from the middle down to the bottom while leaving clear open space above.
+Create the world's iconic location: recognizable buildings, landmarks, trees, cliffs, or scenery. Elements should fill the frame from the middle down to the bottom while leaving clear open space above.
 
 Style: polished pixel art matching the references.
 BACKGROUND REMOVAL REQUIREMENT: Render all empty/background areas as one perfectly flat solid chroma-key magenta (#FF00FF). Do not use #FF00FF inside the actual artwork. Do not draw checkerboards, sky, or scenery in those empty areas.`;
 
-const LAYER3_PROMPT = `Create the FOREGROUND layer of a 3-layer parallax background for a side-scrolling pixel art game.
+const LAYER3_PROMPT = (worldPrompt: string) => `Create the FOREGROUND layer of a 3-layer parallax background for a side-scrolling pixel art game.
 
-Reference images show: 1) the character, 2) the sky/backdrop, and 3) the middle layer.
+World description: "${worldPrompt}"
+Reference images show the already-created layers and may optionally include a style character.
 
 Draw only the closest foreground elements: a narrow strip of ground, grass, rocks, or platform edges along the BOTTOM 25-30% of the image. Do not redraw buildings or distant scenery.
 
 Style: polished pixel art matching the references.
 BACKGROUND REMOVAL REQUIREMENT: The TOP 70-75% and every empty area must be one perfectly flat solid chroma-key magenta (#FF00FF). Do not use #FF00FF inside the actual artwork. Do not draw a checkerboard.`;
 
-const ISOMETRIC_MAP_PROMPT = (characterPrompt: string) =>
-  `Create a large, detailed top-down isometric pixel art game world map for a character: "${characterPrompt}". Do not place the character on the map.
+const ISOMETRIC_MAP_PROMPT = (worldPrompt: string) =>
+  `Create a large, detailed top-down isometric pixel art game world map.
+
+World description: "${worldPrompt}"
+
+Do not place any character on the map.
 
 Style: classic RPG top-down map in a consistent 3/4 overhead perspective.
 
@@ -78,27 +84,32 @@ export async function POST(request: NextRequest) {
     const {
       characterImageUrl,
       characterPrompt,
+      worldPrompt,
       mode,
       regenerateLayer,
       existingLayers,
     } = body;
 
-    if (
-      !characterImageUrl ||
-      typeof characterImageUrl !== "string" ||
-      !characterPrompt ||
-      typeof characterPrompt !== "string"
-    ) {
+    const description = typeof worldPrompt === "string" && worldPrompt.trim()
+      ? worldPrompt.trim()
+      : typeof characterPrompt === "string" && characterPrompt.trim()
+        ? characterPrompt.trim()
+        : "";
+    const characterReferences = typeof characterImageUrl === "string" && characterImageUrl
+      ? [characterImageUrl]
+      : [];
+
+    if (!description) {
       return NextResponse.json(
-        { error: "Character image URL and prompt are required" },
+        { error: "World description is required" },
         { status: 400 }
       );
     }
 
     if (mode === "isometric") {
       const map = await generateLayer(
-        ISOMETRIC_MAP_PROMPT(characterPrompt),
-        [characterImageUrl],
+        ISOMETRIC_MAP_PROMPT(description),
+        characterReferences,
         "1:1"
       );
       return NextResponse.json({
@@ -121,8 +132,8 @@ export async function POST(request: NextRequest) {
 
       if (regenerateLayer === 1) {
         const layer1 = await generateLayer(
-          LAYER1_PROMPT(characterPrompt),
-          [characterImageUrl]
+          LAYER1_PROMPT(description),
+          characterReferences
         );
         return NextResponse.json({
           layer1Url: layer1.url,
@@ -134,8 +145,8 @@ export async function POST(request: NextRequest) {
       }
 
       if (regenerateLayer === 2) {
-        const raw = await generateLayer(LAYER2_PROMPT, [
-          characterImageUrl,
+        const raw = await generateLayer(LAYER2_PROMPT(description), [
+          ...characterReferences,
           existingLayers.layer1Url,
         ]);
         const layer2 = await removeBackgroundWithCodex(raw.url);
@@ -148,8 +159,8 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      const raw = await generateLayer(LAYER3_PROMPT, [
-        characterImageUrl,
+      const raw = await generateLayer(LAYER3_PROMPT(description), [
+        ...characterReferences,
         existingLayers.layer1Url,
         existingLayers.layer2Url,
       ]);
@@ -163,16 +174,14 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const layer1 = await generateLayer(LAYER1_PROMPT(characterPrompt), [
-      characterImageUrl,
-    ]);
-    const layer2Raw = await generateLayer(LAYER2_PROMPT, [
-      characterImageUrl,
+    const layer1 = await generateLayer(LAYER1_PROMPT(description), characterReferences);
+    const layer2Raw = await generateLayer(LAYER2_PROMPT(description), [
+      ...characterReferences,
       layer1.url,
     ]);
     const layer2 = await removeBackgroundWithCodex(layer2Raw.url);
-    const layer3Raw = await generateLayer(LAYER3_PROMPT, [
-      characterImageUrl,
+    const layer3Raw = await generateLayer(LAYER3_PROMPT(description), [
+      ...characterReferences,
       layer1.url,
       layer2.url,
     ]);

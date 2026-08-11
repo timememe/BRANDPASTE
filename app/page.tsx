@@ -131,7 +131,8 @@ interface CharacterCatalogSnapshot {
 
 interface WorldCatalogSnapshot {
   gameMode: GameMode;
-  character: CharacterCatalogSnapshot;
+  worldPrompt: string;
+  character?: CharacterCatalogSnapshot;
   backgroundMode: "default" | "custom";
   customBackgroundLayers: {
     layer1Url: string | null;
@@ -298,6 +299,7 @@ export default function Home() {
     layer3Url: string | null;
   }>({ layer1Url: null, layer2Url: null, layer3Url: null });
   const [isGeneratingBackground, setIsGeneratingBackground] = useState(false);
+  const [worldPrompt, setWorldPrompt] = useState("");
 
   // Isometric map
   const [isometricMapUrl, setIsometricMapUrl] = useState<string | null>(null);
@@ -1111,7 +1113,11 @@ export default function Home() {
   };
 
   const generateBackground = async () => {
-    if (!characterImageUrl) return;
+    const description = worldPrompt.trim() || characterPrompt.trim();
+    if (!description) {
+      setError("Describe the world before generating its background.");
+      return;
+    }
 
     setError(null);
     setIsGeneratingBackground(true);
@@ -1121,8 +1127,8 @@ export default function Home() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          characterImageUrl,
-          characterPrompt: characterPrompt || "pixel art game character",
+          worldPrompt: description,
+          ...(characterImageUrl ? { characterImageUrl } : {}),
         }),
       });
 
@@ -1146,7 +1152,11 @@ export default function Home() {
   };
 
   const generateIsometricMap = async () => {
-    if (!characterImageUrl) return;
+    const description = worldPrompt.trim() || characterPrompt.trim();
+    if (!description) {
+      setError("Describe the world before generating its map.");
+      return;
+    }
 
     setError(null);
     setIsGeneratingBackground(true);
@@ -1156,8 +1166,8 @@ export default function Home() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          characterImageUrl,
-          characterPrompt: characterPrompt || "pixel art game character",
+          worldPrompt: description,
+          ...(characterImageUrl ? { characterImageUrl } : {}),
           mode: "isometric",
         }),
       });
@@ -1179,7 +1189,8 @@ export default function Home() {
   const [regeneratingLayer, setRegeneratingLayer] = useState<number | null>(null);
 
   const regenerateBackgroundLayer = async (layerNumber: 1 | 2 | 3) => {
-    if (!characterImageUrl || !characterPrompt || !customBackgroundLayers.layer1Url) return;
+    const description = worldPrompt.trim() || characterPrompt.trim();
+    if (!description || !customBackgroundLayers.layer1Url) return;
 
     setError(null);
     setRegeneratingLayer(layerNumber);
@@ -1189,8 +1200,8 @@ export default function Home() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          characterImageUrl,
-          characterPrompt,
+          worldPrompt: description,
+          ...(characterImageUrl ? { characterImageUrl } : {}),
           regenerateLayer: layerNumber,
           existingLayers: customBackgroundLayers,
         }),
@@ -1719,7 +1730,8 @@ export default function Home() {
 
   const createWorldCatalogSnapshot = (): WorldCatalogSnapshot => ({
     gameMode,
-    character: createCharacterCatalogSnapshot(),
+    worldPrompt: worldPrompt.trim() || characterPrompt.trim(),
+    ...(characterImageUrl ? { character: createCharacterCatalogSnapshot() } : {}),
     backgroundMode,
     customBackgroundLayers,
     isometricMapUrl,
@@ -1760,11 +1772,11 @@ export default function Home() {
       customBackgroundLayers.layer2Url ||
       customBackgroundLayers.layer3Url
     );
-    if (!characterImageUrl || (kind === "world" && !hasWorld)) return;
+    if ((kind === "character" && !characterImageUrl) || (kind === "world" && !hasWorld)) return;
 
     const defaultName = kind === "character"
       ? characterPrompt.trim().slice(0, 60) || "Untitled character"
-      : `${characterPrompt.trim().slice(0, 48) || "Untitled"} world`;
+      : worldPrompt.trim().slice(0, 60) || `${characterPrompt.trim().slice(0, 48) || "Untitled"} world`;
     const name = window.prompt(
       kind === "character" ? "Character name" : "World name",
       defaultName
@@ -1900,10 +1912,21 @@ export default function Home() {
   const restoreCatalogEntry = (entry: CatalogEntry) => {
     if (entry.kind === "character") {
       applyCharacterCatalogSnapshot(entry.snapshot as unknown as Partial<CharacterCatalogSnapshot>);
+      setWorldPrompt("");
       setLoadedCatalogIds({ character: entry.id });
     } else {
       const world = entry.snapshot as unknown as Partial<WorldCatalogSnapshot>;
-      applyCharacterCatalogSnapshot(world.character || {});
+      applyCharacterCatalogSnapshot({
+        gameMode: world.gameMode === "isometric" ? "isometric" : "side-scroller",
+        ...(world.character || {}),
+      });
+      setWorldPrompt(
+        typeof world.worldPrompt === "string"
+          ? world.worldPrompt
+          : typeof world.character?.characterPrompt === "string"
+            ? world.character.characterPrompt
+            : ""
+      );
       const layers = world.customBackgroundLayers;
       setBackgroundMode(world.backgroundMode === "custom" ? "custom" : "default");
       setCustomBackgroundLayers({
@@ -2006,6 +2029,7 @@ export default function Home() {
     setAttackExtractedFrames([]);
     setIdleExtractedFrames([]);
     setCharacterPrompt("");
+    setWorldPrompt("");
     setInputImageUrl("");
     setCharacterInputMode("text");
     setBackgroundMode("default");
@@ -2037,6 +2061,10 @@ export default function Home() {
   const startCatalogCreation = (kind: CatalogKind, mode: CatalogGameMode) => {
     resetCreator(mode);
     setCreatorIntent(kind);
+    if (kind === "world") {
+      setBackgroundMode("custom");
+      setCurrentStep(6);
+    }
     setWorkspaceView("creator");
   };
 
@@ -2071,6 +2099,7 @@ export default function Home() {
   const generatedBackgroundTargets = currentBackgroundTargets.filter((target) => target.sourceUrl);
   const pendingBackgroundTargets = generatedBackgroundTargets.filter((target) => !target.cleanedUrl);
   const cleanedBackgroundTargets = generatedBackgroundTargets.filter((target) => target.cleanedUrl);
+  const activeWorldPrompt = worldPrompt.trim() || (creatorIntent !== "world" ? characterPrompt.trim() : "");
 
   return (
     <main className="container">
@@ -2079,7 +2108,13 @@ export default function Home() {
           <AgentLogo size={36} />
           <h1>BRANDPASTE</h1>
         </div>
-        <p>{workspaceView === "catalog" ? "Your reusable game asset library" : "Character-to-world creation workflow"}</p>
+        <p>
+          {workspaceView === "catalog"
+            ? "Your reusable game asset library"
+            : creatorIntent === "world"
+              ? "Independent world creation workspace"
+              : "Character and animation creation workflow"}
+        </p>
         {workspaceView === "creator" && (
           <div className="creator-header-actions">
             {characterImageUrl && (
@@ -2137,7 +2172,7 @@ export default function Home() {
       </div>
 
       {/* Steps indicator */}
-      <div className="steps-indicator">
+      {creatorIntent !== "world" && <div className="steps-indicator">
         {[1, 2, 3, 4, 5].map((displayStep) => {
           // Map display step 5 to internal step 6 (sandbox)
           const internalStep = displayStep === 5 ? 6 : displayStep;
@@ -2156,7 +2191,7 @@ export default function Home() {
             />
           );
         })}
-      </div>
+      </div>}
 
       {error && <div className="error-message">{error}</div>}
 
@@ -3249,21 +3284,56 @@ export default function Home() {
       {currentStep === 6 && (
         <div className="step-container">
           <h2 className="step-title">
-            <span className="step-number">5</span>
-            Sandbox
+            <span className="step-number">{creatorIntent === "world" ? "W" : "5"}</span>
+            {creatorIntent === "world" ? "World Editor" : "Sandbox"}
           </h2>
 
           <p className="description-text">
-            {gameMode === "isometric"
-              ? "Explore the world with your character! Use WASD or arrow keys to move in all directions."
-              : "Walk, jump, and attack with your character! Use the keyboard to control movement."}
+            {creatorIntent === "world"
+              ? "Describe and generate a reusable game world. No character or sprite sheet is required."
+              : gameMode === "isometric"
+                ? "Explore the world with your character! Use WASD or arrow keys to move in all directions."
+                : "Walk, jump, and attack with your character! Use the keyboard to control movement."}
           </p>
 
+          {creatorIntent === "world" && (
+            <div className="world-editor-brief">
+              <div className="world-editor-mode" role="group" aria-label="World perspective">
+                <button
+                  className={gameMode === "side-scroller" ? "active" : ""}
+                  onClick={() => {
+                    setGameMode("side-scroller");
+                    setBackgroundMode("custom");
+                  }}
+                >
+                  Side-scroller world
+                </button>
+                <button
+                  className={gameMode === "isometric" ? "active" : ""}
+                  onClick={() => setGameMode("isometric")}
+                >
+                  Isometric world
+                </button>
+              </div>
+              <label htmlFor="world-prompt">World description</label>
+              <textarea
+                id="world-prompt"
+                rows={4}
+                value={worldPrompt}
+                onChange={(event) => setWorldPrompt(event.target.value)}
+                placeholder="Describe the setting, architecture, terrain, mood, palette, and important landmarks..."
+              />
+              <small>
+                This prompt belongs to the world itself and is stored with the world catalog entry.
+              </small>
+            </div>
+          )}
+
           {/* Side-scroller background controls */}
-          {gameMode === "side-scroller" && (
+          {gameMode === "side-scroller" && creatorIntent !== "character" && (
             <>
               {/* Background mode tabs */}
-              <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
+              {creatorIntent !== "world" && <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
                 <button
                   className={`btn ${backgroundMode === "default" ? "btn-primary" : "btn-secondary"}`}
                   onClick={() => setBackgroundMode("default")}
@@ -3276,20 +3346,22 @@ export default function Home() {
                 >
                   Custom Background
                 </button>
-              </div>
+              </div>}
 
               {/* Custom background generation UI */}
-              {backgroundMode === "custom" && (
+              {(creatorIntent === "world" || backgroundMode === "custom") && (
                 <div style={{ marginBottom: "1rem", padding: "1rem", background: "var(--bg-secondary)", borderRadius: "8px" }}>
                   {!customBackgroundLayers.layer1Url ? (
                     <>
                       <p style={{ marginBottom: "0.75rem", color: "var(--text-secondary)", fontSize: "0.9rem" }}>
-                        Generate a custom parallax background that matches your character&apos;s world.
+                        {creatorIntent === "world"
+                          ? "Generate a three-layer parallax environment directly from the world description."
+                          : "Generate a custom parallax background that matches your character's world."}
                       </p>
                       <button
                         className="btn btn-success"
                         onClick={generateBackground}
-                        disabled={isGeneratingBackground}
+                        disabled={isGeneratingBackground || !activeWorldPrompt}
                       >
                         {isGeneratingBackground ? "Generating Background..." : "Generate Custom Background"}
                       </button>
@@ -3312,7 +3384,7 @@ export default function Home() {
                           <button
                             className="btn btn-secondary"
                             onClick={() => regenerateBackgroundLayer(1)}
-                            disabled={isGeneratingBackground || regeneratingLayer !== null}
+                            disabled={isGeneratingBackground || regeneratingLayer !== null || !activeWorldPrompt}
                             style={{ fontSize: "0.75rem", padding: "0.25rem 0.5rem", marginTop: "0.25rem", width: "100%" }}
                           >
                             {regeneratingLayer === 1 ? "..." : "Regen"}
@@ -3331,7 +3403,7 @@ export default function Home() {
                           <button
                             className="btn btn-secondary"
                             onClick={() => regenerateBackgroundLayer(2)}
-                            disabled={isGeneratingBackground || regeneratingLayer !== null}
+                            disabled={isGeneratingBackground || regeneratingLayer !== null || !activeWorldPrompt}
                             style={{ fontSize: "0.75rem", padding: "0.25rem 0.5rem", marginTop: "0.25rem", width: "100%" }}
                           >
                             {regeneratingLayer === 2 ? "..." : "Regen"}
@@ -3350,7 +3422,7 @@ export default function Home() {
                           <button
                             className="btn btn-secondary"
                             onClick={() => regenerateBackgroundLayer(3)}
-                            disabled={isGeneratingBackground || regeneratingLayer !== null}
+                            disabled={isGeneratingBackground || regeneratingLayer !== null || !activeWorldPrompt}
                             style={{ fontSize: "0.75rem", padding: "0.25rem 0.5rem", marginTop: "0.25rem", width: "100%" }}
                           >
                             {regeneratingLayer === 3 ? "..." : "Regen"}
@@ -3367,7 +3439,7 @@ export default function Home() {
                       <button
                         className="btn btn-secondary"
                         onClick={generateBackground}
-                        disabled={isGeneratingBackground || regeneratingLayer !== null}
+                        disabled={isGeneratingBackground || regeneratingLayer !== null || !activeWorldPrompt}
                         style={{ fontSize: "0.85rem" }}
                       >
                         {isGeneratingBackground ? "Regenerating All..." : "Regenerate All Layers"}
@@ -3380,17 +3452,19 @@ export default function Home() {
           )}
 
           {/* Isometric map controls */}
-          {gameMode === "isometric" && (
+          {gameMode === "isometric" && creatorIntent !== "character" && (
             <div style={{ marginBottom: "1rem", padding: "1rem", background: "var(--bg-secondary)", borderRadius: "8px" }}>
               {!isometricMapUrl ? (
                 <>
                   <p style={{ marginBottom: "0.75rem", color: "var(--text-secondary)", fontSize: "0.9rem" }}>
-                    Generate an isometric world map for your character to explore.
+                    {creatorIntent === "world"
+                      ? "Generate a standalone isometric map directly from the world description."
+                      : "Generate an isometric world map for your character to explore."}
                   </p>
                   <button
                     className="btn btn-success"
                     onClick={generateIsometricMap}
-                    disabled={isGeneratingBackground}
+                    disabled={isGeneratingBackground || !activeWorldPrompt}
                   >
                     {isGeneratingBackground ? "Generating Map..." : "Generate Isometric Map"}
                   </button>
@@ -3404,7 +3478,9 @@ export default function Home() {
               ) : (
                 <>
                   <p style={{ marginBottom: "0.75rem", color: "var(--text-secondary)", fontSize: "0.9rem" }}>
-                    Isometric map generated! Your character can explore the world below.
+                    {creatorIntent === "world"
+                      ? "Isometric map generated and ready to save in the world catalog."
+                      : "Isometric map generated! Your character can explore the world below."}
                   </p>
                   <div style={{ marginBottom: "0.75rem" }}>
                     <img src={isometricMapUrl} alt="Isometric map" style={{ width: "100%", maxWidth: "400px", borderRadius: "4px", opacity: isGeneratingBackground ? 0.5 : 1 }} />
@@ -3412,7 +3488,7 @@ export default function Home() {
                   <button
                     className="btn btn-secondary"
                     onClick={generateIsometricMap}
-                    disabled={isGeneratingBackground}
+                    disabled={isGeneratingBackground || !activeWorldPrompt}
                     style={{ fontSize: "0.85rem" }}
                   >
                     {isGeneratingBackground ? "Regenerating..." : "Regenerate Map"}
@@ -3422,6 +3498,7 @@ export default function Home() {
             </div>
           )}
 
+          {creatorIntent !== "world" && <>
           <div className="sandbox-container">
             <Suspense fallback={
               <div className="loading">
@@ -3486,9 +3563,10 @@ export default function Home() {
               />
             </div>
           </div>
+          </>}
 
           {/* Custom Background Layer Offsets (side-scroller only, when layers exist) */}
-          {gameMode === "side-scroller" && backgroundMode === "custom" && customBackgroundLayers.layer1Url && (
+          {gameMode === "side-scroller" && creatorIntent !== "character" && backgroundMode === "custom" && customBackgroundLayers.layer1Url && (
             <div style={{
               marginTop: "1.5rem",
               padding: "1rem 1.25rem",
@@ -3573,7 +3651,7 @@ export default function Home() {
           )}
 
           {/* Sprite Size controls */}
-          <div style={{
+          {creatorIntent !== "world" && <div style={{
             marginTop: "1.5rem",
             padding: "1rem 1.25rem",
             background: "var(--bg-secondary)",
@@ -3741,18 +3819,37 @@ export default function Home() {
                 );
               })}
             </div>
-          </div>
+          </div>}
 
           <div className="button-group" style={{ marginTop: "1.5rem" }}>
-            <button className="btn btn-secondary" onClick={() => setCurrentStep(4)}>
-              ← Back to Frame Extraction
-            </button>
-            <button className="btn btn-secondary" onClick={() => {
-              resetCreator("side-scroller");
-              setCreatorIntent("classic");
-            }}>
-              Start New Sprite
-            </button>
+            {creatorIntent === "world" ? (
+              <>
+                <button className="btn btn-secondary" onClick={openCatalog}>
+                  ← Back to Catalog
+                </button>
+                <button className="btn btn-secondary" onClick={() => {
+                  const nextMode = gameMode;
+                  resetCreator(nextMode);
+                  setCreatorIntent("world");
+                  setBackgroundMode("custom");
+                  setCurrentStep(6);
+                }}>
+                  Start New World
+                </button>
+              </>
+            ) : (
+              <>
+                <button className="btn btn-secondary" onClick={() => setCurrentStep(4)}>
+                  ← Back to Frame Extraction
+                </button>
+                <button className="btn btn-secondary" onClick={() => {
+                  resetCreator("side-scroller");
+                  setCreatorIntent("classic");
+                }}>
+                  Start New Sprite
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}
