@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "561b59a9-15fb-4ec0-b5b6-7952b4ee783a",
+  "kind": "character",
+  "name": "Codex storage test",
+  "thumbnailUrl": null,
+  "createdAt": "2026-08-11T07:41:38.855Z",
+  "updatedAt": "2026-08-11T07:41:38.855Z",
+  "snapshot": {
+    "test": true,
+    "source": "production-smoke-test"
+  }
+}
