@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "id": "eac86f58-0fd0-4037-8747-debc5c655e33",
+  "kind": "world",
+  "mode": "side-scroller",
+  "name": "open-space office",
+  "thumbnailUrl": "https://raw.githubusercontent.com/timememe/BRANDPASTE/catalog-data/brandpaste-storage/assets/2026/08/8770e995-1e2c-45f3-a87e-747b5264c055.png",
+  "animationCount": 0,
+  "createdAt": "2026-08-11T13:20:03.039Z",
+  "updatedAt": "2026-08-11T13:20:03.039Z",
+  "snapshot": {
+    "gameMode": "side-scroller",
+    "worldPrompt": "open-space office",
+    "backgroundMode": "custom",
+    "customBackgroundLayers": {
+      "layer1Url": "https://raw.githubusercontent.com/timememe/BRANDPASTE/catalog-data/brandpaste-storage/assets/2026/08/80f13709-e5db-4cd7-ab9d-58abf2b2b34e.png",
+      "layer2Url": "https://raw.githubusercontent.com/timememe/BRANDPASTE/catalog-data/brandpaste-storage/assets/2026/08/8770e995-1e2c-45f3-a87e-747b5264c055.png",
+      "layer3Url": "https://raw.githubusercontent.com/timememe/BRANDPASTE/catalog-data/brandpaste-storage/assets/2026/08/a58deafd-1a0d-4b2a-89aa-551f9d1c8a7c.png"
+    },
+    "isometricMapUrl": null,
+    "customBgLayerOffsets": [
+      0,
+      0,
+      0
+    ],
+    "customBgLayerVisibility": [
+      true,
+      true,
+      true
+    ],
+    "isometricMapScale": 1,
+    "characterYOffset": 0
+  }
+}
