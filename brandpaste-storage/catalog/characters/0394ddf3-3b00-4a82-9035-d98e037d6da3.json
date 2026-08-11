@@ -5,9 +5,9 @@
   "mode": "side-scroller",
   "name": "ura",
   "thumbnailUrl": "https://raw.githubusercontent.com/timememe/BRANDPASTE/catalog-data/brandpaste-storage/assets/2026/08/1431c30f-5a39-430d-b1ef-1707384fd7ba.png",
-  "animationCount": 3,
+  "animationCount": 4,
   "createdAt": "2026-08-11T09:15:07.654Z",
-  "updatedAt": "2026-08-11T12:20:55.881Z",
+  "updatedAt": "2026-08-11T12:57:16.231Z",
   "snapshot": {
     "gameMode": "side-scroller",
     "characterPrompt": "Recovered from the generation that returned HTTP 524",
@@ -16,7 +16,7 @@
       "walk": "https://raw.githubusercontent.com/timememe/BRANDPASTE/catalog-data/brandpaste-storage/assets/2026/08/758dd612-93a1-4982-9303-543f61c6336b.png",
       "jump": "https://raw.githubusercontent.com/timememe/BRANDPASTE/catalog-data/brandpaste-storage/assets/2026/08/b5e67535-8679-4f40-858c-81d8a1d398a1.png",
       "attack": "https://raw.githubusercontent.com/timememe/BRANDPASTE/catalog-data/brandpaste-storage/assets/2026/08/d3a8aefb-69cf-4b6a-a512-96339544d6b9.png",
-      "idle": null
+      "idle": "https://raw.githubusercontent.com/timememe/BRANDPASTE/catalog-data/brandpaste-storage/assets/2026/08/d455c2bd-148b-4085-a479-970dac5efeb2.png"
     },
     "backgroundRemoved": {
       "walk": null,
