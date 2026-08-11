@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "7c5f7a0d-f4e7-49c1-81ed-e3fd0a021502",
+  "kind": "character",
+  "name": "Parallel storage test 2",
+  "thumbnailUrl": null,
+  "createdAt": "2026-08-11T07:54:52.286Z",
+  "updatedAt": "2026-08-11T07:54:52.286Z",
+  "snapshot": {
+    "parallel": 2,
+    "test": true
+  }
+}
