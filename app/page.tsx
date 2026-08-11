@@ -77,6 +77,20 @@ interface ApiResponsePayload {
   mapUrl: string;
 }
 
+interface BackgroundRemovalResult {
+  imageUrl: string;
+  width: number;
+  height: number;
+}
+
+interface BackgroundRemovalTarget {
+  id: AnimationTypeId;
+  label: string;
+  sourceUrl: string | null;
+  cleanedUrl: string | null;
+  apply: (result: BackgroundRemovalResult) => void;
+}
+
 interface CharacterCatalogSnapshot {
   gameMode: GameMode;
   characterPrompt: string;
@@ -225,7 +239,8 @@ export default function Home() {
   const [jumpBgRemovedUrl, setJumpBgRemovedUrl] = useState<string | null>(null);
   const [attackBgRemovedUrl, setAttackBgRemovedUrl] = useState<string | null>(null);
   const [idleBgRemovedUrl, setIdleBgRemovedUrl] = useState<string | null>(null);
-  const [isRemovingBg, setIsRemovingBg] = useState(false);
+  const [removingBackgroundTypes, setRemovingBackgroundTypes] = useState<Set<AnimationTypeId>>(new Set());
+  const isRemovingBg = removingBackgroundTypes.size > 0;
 
   // Step 4: Frame extraction (grid-based) - walk
   const [walkGridCols, setWalkGridCols] = useState(2);
@@ -675,6 +690,14 @@ export default function Home() {
 
         setIsoAttackUpUrl(atkUpData.imageUrl);
         setIsoAttackSideUrl(atkSideData.imageUrl);
+        setWalkBgRemovedUrl(null);
+        setJumpBgRemovedUrl(null);
+        setAttackBgRemovedUrl(null);
+        setIdleBgRemovedUrl(null);
+        setIsoAttackDownBgUrl(null);
+        setIsoAttackUpBgUrl(null);
+        setIsoAttackSideBgUrl(null);
+        setIsoIdleBgUrl(null);
       } else {
         // Side-scroller: generate all 4 types
         const [walkResponse, jumpResponse, attackResponse, idleResponse] = await Promise.all([
@@ -714,6 +737,10 @@ export default function Home() {
         setJumpSpriteSheetUrl(jumpData.imageUrl);
         setAttackSpriteSheetUrl(attackData.imageUrl);
         setIdleSpriteSheetUrl(idleData.imageUrl);
+        setWalkBgRemovedUrl(null);
+        setJumpBgRemovedUrl(null);
+        setAttackBgRemovedUrl(null);
+        setIdleBgRemovedUrl(null);
       }
 
       setCompletedSteps((prev) => new Set([...prev, 1]));
@@ -768,14 +795,21 @@ export default function Home() {
 
       if (type === "walk") {
         setWalkSpriteSheetUrl(data.imageUrl);
+        setWalkBgRemovedUrl(null);
       } else if (type === "jump") {
         setJumpSpriteSheetUrl(data.imageUrl);
+        setJumpBgRemovedUrl(null);
       } else if (type === "attack") {
         setAttackSpriteSheetUrl(data.imageUrl);
+        setAttackBgRemovedUrl(null);
         // In isometric mode, idle slot mirrors attack slot (walk-right = flipped walk-left)
-        if (gameMode === "isometric") setIdleSpriteSheetUrl(data.imageUrl);
+        if (gameMode === "isometric") {
+          setIdleSpriteSheetUrl(data.imageUrl);
+          setIdleBgRemovedUrl(null);
+        }
       } else if (type === "idle") {
         setIdleSpriteSheetUrl(data.imageUrl);
+        setIdleBgRemovedUrl(null);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : `Failed to regenerate ${type} sprite sheet`);
@@ -803,9 +837,16 @@ export default function Home() {
       const data = await readApiResponse(response);
       if (!response.ok) throw new Error(data.error || `Failed to regenerate ${dir}`);
 
-      if (dir === "attack-down") setIsoAttackDownUrl(data.imageUrl);
-      else if (dir === "attack-up") setIsoAttackUpUrl(data.imageUrl);
-      else setIsoAttackSideUrl(data.imageUrl);
+      if (dir === "attack-down") {
+        setIsoAttackDownUrl(data.imageUrl);
+        setIsoAttackDownBgUrl(null);
+      } else if (dir === "attack-up") {
+        setIsoAttackUpUrl(data.imageUrl);
+        setIsoAttackUpBgUrl(null);
+      } else {
+        setIsoAttackSideUrl(data.imageUrl);
+        setIsoAttackSideBgUrl(null);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : `Failed to regenerate ${dir}`);
     } finally {
@@ -875,62 +916,197 @@ export default function Home() {
     }
   };
 
-  const removeBackground = async () => {
-    if (!walkSpriteSheetUrl || !jumpSpriteSheetUrl || !attackSpriteSheetUrl || !idleSpriteSheetUrl) return;
+  const backgroundRemovalTargets = (): BackgroundRemovalTarget[] => {
+    if (gameMode === "side-scroller") {
+      return [
+        {
+          id: "walk",
+          label: "Walk",
+          sourceUrl: walkSpriteSheetUrl,
+          cleanedUrl: walkBgRemovedUrl,
+          apply: (result) => {
+            setWalkBgRemovedUrl(result.imageUrl);
+            setWalkSpriteSheetDimensions({ width: result.width, height: result.height });
+          },
+        },
+        {
+          id: "jump",
+          label: "Jump",
+          sourceUrl: jumpSpriteSheetUrl,
+          cleanedUrl: jumpBgRemovedUrl,
+          apply: (result) => {
+            setJumpBgRemovedUrl(result.imageUrl);
+            setJumpSpriteSheetDimensions({ width: result.width, height: result.height });
+          },
+        },
+        {
+          id: "attack",
+          label: "Attack",
+          sourceUrl: attackSpriteSheetUrl,
+          cleanedUrl: attackBgRemovedUrl,
+          apply: (result) => {
+            setAttackBgRemovedUrl(result.imageUrl);
+            setAttackSpriteSheetDimensions({ width: result.width, height: result.height });
+          },
+        },
+        {
+          id: "idle",
+          label: "Idle",
+          sourceUrl: idleSpriteSheetUrl,
+          cleanedUrl: idleBgRemovedUrl,
+          apply: (result) => {
+            setIdleBgRemovedUrl(result.imageUrl);
+            setIdleSpriteSheetDimensions({ width: result.width, height: result.height });
+          },
+        },
+      ];
+    }
+
+    return [
+      {
+        id: "walk-down",
+        label: "Walk Down",
+        sourceUrl: walkSpriteSheetUrl,
+        cleanedUrl: walkBgRemovedUrl,
+        apply: (result) => {
+          setWalkBgRemovedUrl(result.imageUrl);
+          setWalkSpriteSheetDimensions({ width: result.width, height: result.height });
+        },
+      },
+      {
+        id: "walk-up",
+        label: "Walk Up",
+        sourceUrl: jumpSpriteSheetUrl,
+        cleanedUrl: jumpBgRemovedUrl,
+        apply: (result) => {
+          setJumpBgRemovedUrl(result.imageUrl);
+          setJumpSpriteSheetDimensions({ width: result.width, height: result.height });
+        },
+      },
+      {
+        id: "walk-side",
+        label: "Walk Side",
+        sourceUrl: attackSpriteSheetUrl,
+        cleanedUrl: attackBgRemovedUrl,
+        apply: (result) => {
+          setAttackBgRemovedUrl(result.imageUrl);
+          setIdleBgRemovedUrl(result.imageUrl);
+          setAttackSpriteSheetDimensions({ width: result.width, height: result.height });
+          setIdleSpriteSheetDimensions({ width: result.width, height: result.height });
+        },
+      },
+      {
+        id: "idle-iso",
+        label: "Idle Front",
+        sourceUrl: isoIdleUrl,
+        cleanedUrl: isoIdleBgUrl,
+        apply: (result) => {
+          setIsoIdleBgUrl(result.imageUrl);
+          setIsoIdleDimensions({ width: result.width, height: result.height });
+        },
+      },
+      {
+        id: "attack-down",
+        label: "Attack Down",
+        sourceUrl: isoAttackDownUrl,
+        cleanedUrl: isoAttackDownBgUrl,
+        apply: (result) => {
+          setIsoAttackDownBgUrl(result.imageUrl);
+          setIsoAttackDownDimensions({ width: result.width, height: result.height });
+        },
+      },
+      {
+        id: "attack-up",
+        label: "Attack Up",
+        sourceUrl: isoAttackUpUrl,
+        cleanedUrl: isoAttackUpBgUrl,
+        apply: (result) => {
+          setIsoAttackUpBgUrl(result.imageUrl);
+          setIsoAttackUpDimensions({ width: result.width, height: result.height });
+        },
+      },
+      {
+        id: "attack-side",
+        label: "Attack Side",
+        sourceUrl: isoAttackSideUrl,
+        cleanedUrl: isoAttackSideBgUrl,
+        apply: (result) => {
+          setIsoAttackSideBgUrl(result.imageUrl);
+          setIsoAttackSideDimensions({ width: result.width, height: result.height });
+        },
+      },
+    ];
+  };
+
+  const requestBackgroundRemoval = async (
+    target: BackgroundRemovalTarget
+  ): Promise<BackgroundRemovalResult> => {
+    if (!target.sourceUrl) throw new Error(`${target.label} has not been generated yet.`);
+    const response = await fetch("/api/remove-background", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ imageUrl: target.sourceUrl }),
+    });
+    const data = await readApiResponse(response);
+    if (!response.ok || !data.imageUrl) {
+      throw new Error(data.error || `Failed to remove the ${target.label} background`);
+    }
+    return { imageUrl: data.imageUrl, width: data.width, height: data.height };
+  };
+
+  const removeAnimationBackground = async (animationType: AnimationTypeId) => {
+    const target = backgroundRemovalTargets().find((item) => item.id === animationType);
+    if (!target?.sourceUrl) return;
 
     setError(null);
-    setIsRemovingBg(true);
-
+    setRemovingBackgroundTypes((current) => new Set([...current, animationType]));
     try {
-      // Build list of URLs to remove backgrounds from
-      const bgRemovalUrls = [walkSpriteSheetUrl, jumpSpriteSheetUrl, attackSpriteSheetUrl, idleSpriteSheetUrl];
-
-      // In isometric mode, also remove bg from attack sheets
-      if (gameMode === "isometric" && isoAttackDownUrl && isoAttackUpUrl && isoAttackSideUrl && isoIdleUrl) {
-        bgRemovalUrls.push(isoAttackDownUrl, isoAttackUpUrl, isoAttackSideUrl, isoIdleUrl);
-      }
-
-      const responses = await Promise.all(
-        bgRemovalUrls.map((url) =>
-          fetch("/api/remove-background", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ imageUrl: url }),
-          })
-        )
-      );
-
-      const results = await Promise.all(responses.map(readApiResponse));
-
-      // Check for errors
-      for (let i = 0; i < responses.length; i++) {
-        if (!responses[i].ok) throw new Error(results[i].error || "Failed to remove background");
-      }
-
-      // Set walk/jump/attack/idle bg removed URLs
-      setWalkBgRemovedUrl(results[0].imageUrl);
-      setJumpBgRemovedUrl(results[1].imageUrl);
-      setAttackBgRemovedUrl(results[2].imageUrl);
-      setIdleBgRemovedUrl(results[3].imageUrl);
-      setWalkSpriteSheetDimensions({ width: results[0].width, height: results[0].height });
-      setJumpSpriteSheetDimensions({ width: results[1].width, height: results[1].height });
-      setAttackSpriteSheetDimensions({ width: results[2].width, height: results[2].height });
-      setIdleSpriteSheetDimensions({ width: results[3].width, height: results[3].height });
-
-      // Set isometric attack bg removed URLs
-      if (gameMode === "isometric" && results.length >= 8) {
-        setIsoAttackDownBgUrl(results[4].imageUrl);
-        setIsoAttackUpBgUrl(results[5].imageUrl);
-        setIsoAttackSideBgUrl(results[6].imageUrl);
-        setIsoIdleBgUrl(results[7].imageUrl);
-      }
-
+      target.apply(await requestBackgroundRemoval(target));
       setCompletedSteps((prev) => new Set([...prev, 2]));
-      setCurrentStep(3);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to remove background");
+      setError(err instanceof Error ? err.message : `Failed to remove the ${target.label} background`);
     } finally {
-      setIsRemovingBg(false);
+      setRemovingBackgroundTypes((current) => {
+        const next = new Set(current);
+        next.delete(animationType);
+        return next;
+      });
+    }
+  };
+
+  const removeAvailableBackgrounds = async () => {
+    const targets = backgroundRemovalTargets().filter(
+      (target) => target.sourceUrl && !target.cleanedUrl
+    );
+    const available = backgroundRemovalTargets().filter((target) => target.sourceUrl);
+    if (targets.length === 0) {
+      if (available.some((target) => target.cleanedUrl)) setCurrentStep(3);
+      return;
+    }
+
+    setError(null);
+    setRemovingBackgroundTypes(new Set(targets.map((target) => target.id)));
+    try {
+      const results = await Promise.allSettled(
+        targets.map(async (target) => ({ target, result: await requestBackgroundRemoval(target) }))
+      );
+      let completed = 0;
+      const failures: string[] = [];
+      for (const result of results) {
+        if (result.status === "fulfilled") {
+          result.value.target.apply(result.value.result);
+          completed += 1;
+        } else {
+          failures.push(result.reason instanceof Error ? result.reason.message : "Background removal failed");
+        }
+      }
+      if (completed > 0) {
+        setCompletedSteps((prev) => new Set([...prev, 2]));
+        setCurrentStep(3);
+      }
+      if (failures.length > 0) setError(failures.join(" "));
+    } finally {
+      setRemovingBackgroundTypes(new Set());
     }
   };
 
@@ -1891,6 +2067,10 @@ export default function Home() {
     customBackgroundLayers.layer2Url ||
     customBackgroundLayers.layer3Url
   );
+  const currentBackgroundTargets = backgroundRemovalTargets();
+  const generatedBackgroundTargets = currentBackgroundTargets.filter((target) => target.sourceUrl);
+  const pendingBackgroundTargets = generatedBackgroundTargets.filter((target) => !target.cleanedUrl);
+  const cleanedBackgroundTargets = generatedBackgroundTargets.filter((target) => target.cleanedUrl);
 
   return (
     <main className="container">
@@ -2343,22 +2523,37 @@ export default function Home() {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "1rem", marginBottom: "0.5rem" }}>
                 {(["walk", "jump", "attack"] as const).map((slot) => {
                   const url = slot === "walk" ? walkSpriteSheetUrl : slot === "jump" ? jumpSpriteSheetUrl : attackSpriteSheetUrl;
+                  const animationType: AnimationTypeId = slot === "walk" ? "walk-down" : slot === "jump" ? "walk-up" : "walk-side";
+                  const removalTarget = currentBackgroundTargets.find((target) => target.id === animationType);
+                  const displayUrl = removalTarget?.cleanedUrl || url;
+                  const isCleaning = removingBackgroundTypes.has(animationType);
                   return (
-                    <div key={slot}>
-                      <h4 style={{ marginBottom: "0.5rem", color: "var(--text-secondary)", fontSize: "0.85rem" }}>{getSheetLabel(slot)}</h4>
-                      {url && (
+                    <div className="sprite-sheet-card" key={slot}>
+                      <div className="sprite-sheet-card-heading">
+                        <h4>{getSheetLabel(slot)}</h4>
+                        {removalTarget?.cleanedUrl && <span>Transparent</span>}
+                      </div>
+                      {displayUrl && (
                         <div className="image-preview" style={{ margin: 0, opacity: regeneratingSpriteSheet === slot ? 0.5 : 1 }}>
-                          <img src={url} alt={`${getSheetLabel(slot)} sprite sheet`} />
+                          <img src={displayUrl} alt={`${getSheetLabel(slot)} sprite sheet`} />
                         </div>
                       )}
-                      <button
-                        className="btn btn-secondary"
-                        onClick={() => regenerateSpriteSheet(slot)}
-                        disabled={isGeneratingSpriteSheet || regeneratingSpriteSheet !== null || isRemovingBg}
-                        style={{ fontSize: "0.75rem", padding: "0.25rem 0.5rem", marginTop: "0.5rem", width: "100%" }}
-                      >
-                        {regeneratingSpriteSheet === slot ? "Generating..." : url ? "Regenerate" : "Generate"}
-                      </button>
+                      <div className="sprite-sheet-actions">
+                        <button
+                          className="btn btn-secondary"
+                          onClick={() => regenerateSpriteSheet(slot)}
+                          disabled={isGeneratingSpriteSheet || regeneratingSpriteSheet !== null || isRemovingBg}
+                        >
+                          {regeneratingSpriteSheet === slot ? "Generating..." : url ? "Regenerate" : "Generate"}
+                        </button>
+                        <button
+                          className="btn btn-transparency"
+                          onClick={() => void removeAnimationBackground(animationType)}
+                          disabled={!url || isGeneratingSpriteSheet || regeneratingSpriteSheet !== null || isCleaning}
+                        >
+                          {!url ? "Generate first" : isCleaning ? "Removing..." : removalTarget?.cleanedUrl ? "Remove again" : "Remove background"}
+                        </button>
+                      </div>
                     </div>
                   );
                 })}
@@ -2370,31 +2565,43 @@ export default function Home() {
               {/* Idle sheet */}
               <h4 style={{ marginBottom: "0.5rem", color: "var(--text-secondary)", fontSize: "0.8rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>Idle Sprite</h4>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "1rem", marginBottom: "1.25rem" }}>
-                <div>
-                  <h4 style={{ marginBottom: "0.5rem", color: "var(--text-secondary)", fontSize: "0.85rem" }}>Idle</h4>
+                <div className="sprite-sheet-card">
+                  <div className="sprite-sheet-card-heading">
+                    <h4>Idle Front</h4>
+                    {isoIdleBgUrl && <span>Transparent</span>}
+                  </div>
                   {isoIdleUrl && (
                     <div className="image-preview" style={{ margin: 0, opacity: regeneratingSpriteSheet === "idle-iso" ? 0.5 : 1 }}>
-                      <img src={isoIdleUrl} alt="Idle sprite sheet" />
+                      <img src={isoIdleBgUrl || isoIdleUrl} alt="Idle sprite sheet" />
                     </div>
                   )}
-                  <button
-                    className="btn btn-secondary"
-                    onClick={async () => {
-                      if (!characterImageUrl) return;
-                      setRegeneratingSpriteSheet("idle-iso");
-                      try {
-                        const res = await fetch("/api/generate-sprite-sheet", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ characterImageUrl, type: "idle-iso" }) });
-                        const data = await readApiResponse(res);
-                        if (!res.ok) throw new Error(data.error);
-                        setIsoIdleUrl(data.imageUrl);
-                      } catch (err) { setError(err instanceof Error ? err.message : "Failed to regenerate idle"); }
-                      finally { setRegeneratingSpriteSheet(null); }
-                    }}
-                    disabled={isGeneratingSpriteSheet || regeneratingSpriteSheet !== null || isRemovingBg}
-                    style={{ fontSize: "0.75rem", padding: "0.25rem 0.5rem", marginTop: "0.5rem", width: "100%" }}
-                  >
-                    {regeneratingSpriteSheet === "idle-iso" ? "Generating..." : isoIdleUrl ? "Regenerate" : "Generate"}
-                  </button>
+                  <div className="sprite-sheet-actions">
+                    <button
+                      className="btn btn-secondary"
+                      onClick={async () => {
+                        if (!characterImageUrl) return;
+                        setRegeneratingSpriteSheet("idle-iso");
+                        try {
+                          const res = await fetch("/api/generate-sprite-sheet", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ characterImageUrl, type: "idle-iso" }) });
+                          const data = await readApiResponse(res);
+                          if (!res.ok) throw new Error(data.error);
+                          setIsoIdleUrl(data.imageUrl);
+                          setIsoIdleBgUrl(null);
+                        } catch (err) { setError(err instanceof Error ? err.message : "Failed to regenerate idle"); }
+                        finally { setRegeneratingSpriteSheet(null); }
+                      }}
+                      disabled={isGeneratingSpriteSheet || regeneratingSpriteSheet !== null || isRemovingBg}
+                    >
+                      {regeneratingSpriteSheet === "idle-iso" ? "Generating..." : isoIdleUrl ? "Regenerate" : "Generate"}
+                    </button>
+                    <button
+                      className="btn btn-transparency"
+                      onClick={() => void removeAnimationBackground("idle-iso")}
+                      disabled={!isoIdleUrl || isGeneratingSpriteSheet || regeneratingSpriteSheet !== null || removingBackgroundTypes.has("idle-iso")}
+                    >
+                      {!isoIdleUrl ? "Generate first" : removingBackgroundTypes.has("idle-iso") ? "Removing..." : isoIdleBgUrl ? "Remove again" : "Remove background"}
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -2404,22 +2611,36 @@ export default function Home() {
                 {(["attack-down", "attack-up", "attack-side"] as const).map((dir) => {
                   const url = dir === "attack-down" ? isoAttackDownUrl : dir === "attack-up" ? isoAttackUpUrl : isoAttackSideUrl;
                   const label = dir === "attack-down" ? "Attack Down" : dir === "attack-up" ? "Attack Up" : "Attack Side";
+                  const removalTarget = currentBackgroundTargets.find((target) => target.id === dir);
+                  const displayUrl = removalTarget?.cleanedUrl || url;
+                  const isCleaning = removingBackgroundTypes.has(dir);
                   return (
-                    <div key={dir}>
-                      <h4 style={{ marginBottom: "0.5rem", color: "var(--text-secondary)", fontSize: "0.85rem" }}>{label}</h4>
-                      {url && (
+                    <div className="sprite-sheet-card" key={dir}>
+                      <div className="sprite-sheet-card-heading">
+                        <h4>{label}</h4>
+                        {removalTarget?.cleanedUrl && <span>Transparent</span>}
+                      </div>
+                      {displayUrl && (
                         <div className="image-preview" style={{ margin: 0, opacity: regeneratingSpriteSheet === dir ? 0.5 : 1 }}>
-                          <img src={url} alt={`${label} sprite sheet`} />
+                          <img src={displayUrl} alt={`${label} sprite sheet`} />
                         </div>
                       )}
-                      <button
-                        className="btn btn-secondary"
-                        onClick={() => regenerateIsoAttack(dir)}
-                        disabled={isGeneratingSpriteSheet || regeneratingSpriteSheet !== null || isRemovingBg}
-                        style={{ fontSize: "0.75rem", padding: "0.25rem 0.5rem", marginTop: "0.5rem", width: "100%" }}
-                      >
-                        {regeneratingSpriteSheet === dir ? "Generating..." : url ? "Regenerate" : "Generate"}
-                      </button>
+                      <div className="sprite-sheet-actions">
+                        <button
+                          className="btn btn-secondary"
+                          onClick={() => regenerateIsoAttack(dir)}
+                          disabled={isGeneratingSpriteSheet || regeneratingSpriteSheet !== null || isRemovingBg}
+                        >
+                          {regeneratingSpriteSheet === dir ? "Generating..." : url ? "Regenerate" : "Generate"}
+                        </button>
+                        <button
+                          className="btn btn-transparency"
+                          onClick={() => void removeAnimationBackground(dir)}
+                          disabled={!url || isGeneratingSpriteSheet || regeneratingSpriteSheet !== null || isCleaning}
+                        >
+                          {!url ? "Generate first" : isCleaning ? "Removing..." : removalTarget?.cleanedUrl ? "Remove again" : "Remove background"}
+                        </button>
+                      </div>
                     </div>
                   );
                 })}
@@ -2430,31 +2651,43 @@ export default function Home() {
             </>
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
-              {(["walk", "jump", "attack", "idle"] as const).map((slot) => (
-                <div key={slot}>
-                  <h4 style={{ marginBottom: "0.5rem", color: "var(--text-secondary)", fontSize: "0.85rem" }}>
-                    {getSheetLabel(slot)} (4 frames)
-                  </h4>
-                  {(slot === "walk" ? walkSpriteSheetUrl : slot === "jump" ? jumpSpriteSheetUrl : slot === "attack" ? attackSpriteSheetUrl : idleSpriteSheetUrl) && (
-                    <div className="image-preview" style={{ margin: 0, opacity: regeneratingSpriteSheet === slot ? 0.5 : 1 }}>
-                      <img
-                        src={(slot === "walk" ? walkSpriteSheetUrl : slot === "jump" ? jumpSpriteSheetUrl : slot === "attack" ? attackSpriteSheetUrl : idleSpriteSheetUrl)!}
-                        alt={`${getSheetLabel(slot)} sprite sheet`}
-                      />
+              {(["walk", "jump", "attack", "idle"] as const).map((slot) => {
+                const url = slot === "walk" ? walkSpriteSheetUrl : slot === "jump" ? jumpSpriteSheetUrl : slot === "attack" ? attackSpriteSheetUrl : idleSpriteSheetUrl;
+                const removalTarget = currentBackgroundTargets.find((target) => target.id === slot);
+                const displayUrl = removalTarget?.cleanedUrl || url;
+                const isCleaning = removingBackgroundTypes.has(slot);
+                return (
+                  <div className="sprite-sheet-card" key={slot}>
+                    <div className="sprite-sheet-card-heading">
+                      <h4>{getSheetLabel(slot)} (4 frames)</h4>
+                      {removalTarget?.cleanedUrl && <span>Transparent</span>}
                     </div>
-                  )}
-                  <button
-                    className="btn btn-secondary"
-                    onClick={() => regenerateSpriteSheet(slot)}
-                    disabled={isGeneratingSpriteSheet || regeneratingSpriteSheet !== null || isRemovingBg}
-                    style={{ fontSize: "0.75rem", padding: "0.25rem 0.5rem", marginTop: "0.5rem", width: "100%" }}
-                  >
-                    {regeneratingSpriteSheet === slot
-                      ? "Generating..."
-                      : `${(slot === "walk" ? walkSpriteSheetUrl : slot === "jump" ? jumpSpriteSheetUrl : slot === "attack" ? attackSpriteSheetUrl : idleSpriteSheetUrl) ? "Regenerate" : "Generate"} ${getSheetLabel(slot)}`}
-                  </button>
-                </div>
-              ))}
+                    {displayUrl && (
+                      <div className="image-preview" style={{ margin: 0, opacity: regeneratingSpriteSheet === slot ? 0.5 : 1 }}>
+                        <img src={displayUrl} alt={`${getSheetLabel(slot)} sprite sheet`} />
+                      </div>
+                    )}
+                    <div className="sprite-sheet-actions">
+                      <button
+                        className="btn btn-secondary"
+                        onClick={() => regenerateSpriteSheet(slot)}
+                        disabled={isGeneratingSpriteSheet || regeneratingSpriteSheet !== null || isRemovingBg}
+                      >
+                        {regeneratingSpriteSheet === slot
+                          ? "Generating..."
+                          : `${url ? "Regenerate" : "Generate"} ${getSheetLabel(slot)}`}
+                      </button>
+                      <button
+                        className="btn btn-transparency"
+                        onClick={() => void removeAnimationBackground(slot)}
+                        disabled={!url || isGeneratingSpriteSheet || regeneratingSpriteSheet !== null || isCleaning}
+                      >
+                        {!url ? "Generate first" : isCleaning ? "Removing..." : removalTarget?.cleanedUrl ? "Remove again" : "Remove background"}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
 
@@ -2480,17 +2713,25 @@ export default function Home() {
             </button>
             <button
               className="btn btn-success"
-              onClick={removeBackground}
-              disabled={isRemovingBg || isGeneratingSpriteSheet || !walkSpriteSheetUrl || !jumpSpriteSheetUrl || !attackSpriteSheetUrl || (gameMode === "isometric" && (!isoAttackDownUrl || !isoAttackUpUrl || !isoAttackSideUrl || !isoIdleUrl))}
+              onClick={() => void removeAvailableBackgrounds()}
+              disabled={isRemovingBg || isGeneratingSpriteSheet || generatedBackgroundTargets.length === 0}
             >
-              {isRemovingBg ? "Removing Backgrounds..." : "Remove Backgrounds →"}
+              {isRemovingBg
+                ? `Removing ${removingBackgroundTypes.size} background${removingBackgroundTypes.size === 1 ? "" : "s"}...`
+                : pendingBackgroundTargets.length > 0
+                  ? `Remove all available backgrounds (${pendingBackgroundTargets.length}) →`
+                  : cleanedBackgroundTargets.length > 0
+                    ? "Review transparent sheets →"
+                    : "Generate an animation first"}
             </button>
           </div>
 
           {isRemovingBg && (
             <div className="loading">
               <AgentSpinner />
-              <span className="loading-text">Removing backgrounds from all sheets...</span>
+              <span className="loading-text">
+                Removing background from {removingBackgroundTypes.size} animation{removingBackgroundTypes.size === 1 ? "" : "s"}...
+              </span>
             </div>
           )}
         </div>
@@ -2505,36 +2746,17 @@ export default function Home() {
           </h2>
 
           <p className="description-text">
-            Backgrounds have been removed. Now let&apos;s extract the individual frames.
+            Showing every animation that currently has a transparent sprite sheet. You can
+            return to add or clean the remaining animation types at any time.
           </p>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
-            {(["walk", "jump", "attack", ...(gameMode === "isometric" ? [] : ["idle"])] as ("walk" | "jump" | "attack" | "idle")[]).map((slot) => {
-              const url = slot === "walk" ? walkBgRemovedUrl : slot === "jump" ? jumpBgRemovedUrl : slot === "attack" ? attackBgRemovedUrl : idleBgRemovedUrl;
-              return (
-                <div key={slot}>
-                  <h4 style={{ marginBottom: "0.5rem", color: "var(--text-secondary)", fontSize: "0.85rem" }}>{getSheetLabel(slot)}</h4>
-                  {url && (
-                    <div className="image-preview" style={{ margin: 0 }}>
-                      <img src={url} alt={`${getSheetLabel(slot)} sprite sheet with background removed`} />
-                    </div>
-                  )}
+            {cleanedBackgroundTargets.map((target) => (
+              <div key={target.id}>
+                <h4 style={{ marginBottom: "0.5rem", color: "var(--text-secondary)", fontSize: "0.85rem" }}>{target.label}</h4>
+                <div className="image-preview" style={{ margin: 0 }}>
+                  <img src={target.cleanedUrl!} alt={`${target.label} with background removed`} />
                 </div>
-              );
-            })}
-            {gameMode === "isometric" && ([
-              { label: "Attack Down", url: isoAttackDownBgUrl },
-              { label: "Attack Up", url: isoAttackUpBgUrl },
-              { label: "Attack Side", url: isoAttackSideBgUrl },
-              { label: "Idle", url: isoIdleBgUrl },
-            ]).map(({ label, url }) => (
-              <div key={label}>
-                <h4 style={{ marginBottom: "0.5rem", color: "var(--text-secondary)", fontSize: "0.85rem" }}>{label}</h4>
-                {url && (
-                  <div className="image-preview" style={{ margin: 0 }}>
-                    <img src={url} alt={`${label} with background removed`} />
-                  </div>
-                )}
               </div>
             ))}
           </div>
@@ -2543,7 +2765,7 @@ export default function Home() {
             <button className="btn btn-secondary" onClick={() => setCurrentStep(2)}>
               ← Back
             </button>
-            <button className="btn btn-success" onClick={proceedToFrameExtraction}>
+            <button className="btn btn-success" onClick={proceedToFrameExtraction} disabled={cleanedBackgroundTargets.length === 0}>
               Extract Frames →
             </button>
           </div>

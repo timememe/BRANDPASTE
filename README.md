@@ -8,6 +8,7 @@ Sprite sheet generator for 2D pixel-art characters, animations, parallax backgro
 - Side-scroller/isometric tags and filters on characters, animation capabilities, and worlds.
 - Generated sprite sheets belong to their character and can be added, edited, regenerated, or removed from its catalog card.
 - A separate Animation Types catalog documents the reusable side-scroller and isometric motions that can be generated for compatible characters.
+- Background removal can run independently for any generated animation, or in bulk for every available sheet without requiring a complete animation set.
 - The original character-to-sprite-to-background workflow remains available through the classic Creator button.
 - Side-scroller and isometric RPG modes.
 - Character generation from text or an uploaded reference image.

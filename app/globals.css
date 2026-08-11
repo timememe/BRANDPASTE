@@ -1694,6 +1694,66 @@ input, textarea {
   flex: 0 0 auto;
 }
 
+.sprite-sheet-card {
+  min-width: 0;
+  padding: 0.55rem;
+  background: rgba(255, 255, 255, 0.014);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+.sprite-sheet-card-heading {
+  display: flex;
+  min-height: 24px;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.45rem;
+  margin-bottom: 0.45rem;
+}
+
+.sprite-sheet-card-heading h4 {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+.sprite-sheet-card-heading span {
+  padding: 0.18rem 0.35rem;
+  color: #b9f3ff;
+  background: rgba(56, 172, 198, 0.08);
+  border: 1px solid rgba(56, 172, 198, 0.28);
+  border-radius: 999px;
+  font-size: 0.56rem;
+  font-weight: 700;
+}
+
+.sprite-sheet-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+}
+
+.sprite-sheet-actions .btn {
+  width: 100%;
+  min-width: 0;
+  padding: 0.38rem 0.42rem;
+  font-size: 0.62rem;
+  line-height: 1.25;
+}
+
+.btn-transparency {
+  color: #b9f3ff;
+  background: rgba(56, 172, 198, 0.07);
+  border: 1px solid rgba(56, 172, 198, 0.25);
+}
+
+.btn-transparency:hover:not(:disabled) {
+  color: #e3fbff;
+  background: rgba(56, 172, 198, 0.14);
+  border-color: rgba(56, 172, 198, 0.5);
+}
+
 .animation-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
