@@ -4,6 +4,10 @@ Sprite sheet generator for 2D pixel-art characters, animations, parallax backgro
 
 ## Features
 
+- Catalog-first workspace for creating, reopening, and editing characters, animations, and worlds.
+- Side-scroller/isometric tags and filters on characters, sprite sheets, and worlds.
+- Generated sprite sheets remain attached to their character and are browsable as animation assets.
+- The original character-to-sprite-to-background workflow remains available through the classic Creator button.
 - Side-scroller and isometric RPG modes.
 - Character generation from text or an uploaded reference image.
 - Walk, jump, attack, and idle sprite sheets.
@@ -21,6 +25,8 @@ Browser -> Next.js API -> VPS Codex Agent /task
                          -> GitHub catalog-data/brandpaste-storage
 Browser <- raw GitHub PNG + catalog metadata
 ```
+
+The app opens on the catalog. Character snapshots contain the generated sprite-sheet URLs, grid settings, and editor state; world snapshots contain their character context plus parallax layers or the isometric map. Older catalog JSON is normalized on read, so entries created before mode and animation metadata were introduced remain usable.
 
 The service tokens are read only by server-side modules. They must never use a `NEXT_PUBLIC_*` environment variable or be embedded in client code.
 

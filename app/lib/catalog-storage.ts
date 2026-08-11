@@ -2,7 +2,12 @@ import "server-only";
 
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { randomUUID } from "node:crypto";
-import type { CatalogEntry, CatalogKind, CatalogResponse } from "./catalog-types";
+import type {
+  CatalogEntry,
+  CatalogGameMode,
+  CatalogKind,
+  CatalogResponse,
+} from "./catalog-types";
 
 const DEFAULT_OWNER = "timememe";
 const DEFAULT_REPO = "BRANDPASTE";
@@ -194,6 +199,37 @@ function isCatalogKind(value: unknown): value is CatalogKind {
   return value === "character" || value === "world";
 }
 
+function isCatalogGameMode(value: unknown): value is CatalogGameMode {
+  return value === "side-scroller" || value === "isometric";
+}
+
+function snapshotRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+function inferMode(snapshot: Record<string, unknown>, explicit?: unknown): CatalogGameMode {
+  if (isCatalogGameMode(explicit)) return explicit;
+  if (isCatalogGameMode(snapshot.gameMode)) return snapshot.gameMode;
+  const character = snapshotRecord(snapshot.character);
+  return isCatalogGameMode(character.gameMode) ? character.gameMode : "side-scroller";
+}
+
+function inferAnimationCount(snapshot: Record<string, unknown>): number {
+  const character = snapshotRecord(snapshot.character);
+  const source = Object.keys(character).length > 0 ? character : snapshot;
+  const spriteSheets = snapshotRecord(source.spriteSheets);
+  const isometric = snapshotRecord(source.isometric);
+  const spriteCount = ["walk", "jump", "attack", "idle"].filter(
+    (key) => typeof spriteSheets[key] === "string"
+  ).length;
+  const isometricCount = ["idle", "attackDown", "attackUp", "attackSide"].filter(
+    (key) => typeof isometric[key] === "string"
+  ).length;
+  return spriteCount + isometricCount;
+}
+
 function isSafeId(value: string): boolean {
   return /^[0-9a-f-]{36}$/i.test(value);
 }
@@ -276,7 +312,15 @@ function parseCatalogBytes(bytes: Uint8Array): CatalogEntry | null {
     ) {
       return null;
     }
-    return value as CatalogEntry;
+    const snapshot = value.snapshot as Record<string, unknown>;
+    return {
+      ...(value as CatalogEntry),
+      mode: inferMode(snapshot, value.mode),
+      animationCount:
+        typeof value.animationCount === "number" && value.animationCount >= 0
+          ? value.animationCount
+          : inferAnimationCount(snapshot),
+    };
   } catch {
     return null;
   }
@@ -321,6 +365,7 @@ export async function listCatalog(): Promise<CatalogResponse> {
 export async function saveCatalogEntry(input: {
   id?: string;
   kind: CatalogKind;
+  mode?: CatalogGameMode;
   name: string;
   thumbnailUrl: string | null;
   snapshot: Record<string, unknown>;
@@ -339,8 +384,10 @@ export async function saveCatalogEntry(input: {
     schemaVersion: 1,
     id,
     kind: input.kind,
+    mode: inferMode(input.snapshot, input.mode),
     name,
     thumbnailUrl: input.thumbnailUrl,
+    animationCount: inferAnimationCount(input.snapshot),
     createdAt: existing?.createdAt || now,
     updatedAt: now,
     snapshot: input.snapshot,
@@ -349,7 +396,7 @@ export async function saveCatalogEntry(input: {
   if (json.byteLength > MAX_CATALOG_JSON_BYTES) {
     throw new Error("Catalog snapshot exceeds the 512 KB limit");
   }
-  await writeFile(catalogPath(input.kind, id), json, `[catalog] Save ${input.kind} “${name}”`);
+  await writeFile(catalogPath(input.kind, id), json, `[catalog] Save ${input.kind}: ${name}`);
   return entry;
 }
 

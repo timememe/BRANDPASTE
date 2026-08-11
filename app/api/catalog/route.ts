@@ -4,12 +4,16 @@ import {
   listCatalog,
   saveCatalogEntry,
 } from "@/app/lib/catalog-storage";
-import type { CatalogKind } from "@/app/lib/catalog-types";
+import type { CatalogGameMode, CatalogKind } from "@/app/lib/catalog-types";
 
 export const runtime = "nodejs";
 
 function isKind(value: unknown): value is CatalogKind {
   return value === "character" || value === "world";
+}
+
+function isMode(value: unknown): value is CatalogGameMode {
+  return value === "side-scroller" || value === "isometric";
 }
 
 export async function GET() {
@@ -28,6 +32,7 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as Record<string, unknown>;
     if (
       !isKind(body.kind) ||
+      (body.mode !== undefined && !isMode(body.mode)) ||
       typeof body.name !== "string" ||
       (body.id !== undefined && typeof body.id !== "string") ||
       (body.thumbnailUrl !== null && typeof body.thumbnailUrl !== "string") ||
@@ -41,6 +46,7 @@ export async function POST(request: NextRequest) {
     const entry = await saveCatalogEntry({
       id: body.id as string | undefined,
       kind: body.kind,
+      mode: body.mode as CatalogGameMode | undefined,
       name: body.name,
       thumbnailUrl: body.thumbnailUrl as string | null,
       snapshot: body.snapshot as Record<string, unknown>,

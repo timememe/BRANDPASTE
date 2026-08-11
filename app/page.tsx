@@ -1,7 +1,13 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback, lazy, Suspense } from "react";
-import type { CatalogEntry, CatalogKind, CatalogResponse } from "./lib/catalog-types";
+import CatalogDashboard from "./components/CatalogDashboard";
+import type {
+  CatalogEntry,
+  CatalogGameMode,
+  CatalogKind,
+  CatalogResponse,
+} from "./lib/catalog-types";
 
 // Dynamically import sandbox components to avoid SSR issues
 const PixiSandbox = lazy(() => import("./components/PixiSandbox"));
@@ -300,8 +306,8 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
 
   // Persistent project catalog (metadata + GitHub-backed generated assets)
-  const [isCatalogOpen, setIsCatalogOpen] = useState(false);
-  const [catalogTab, setCatalogTab] = useState<CatalogKind>("character");
+  const [workspaceView, setWorkspaceView] = useState<"catalog" | "creator">("catalog");
+  const [creatorIntent, setCreatorIntent] = useState<"character" | "world" | "classic">("classic");
   const [catalog, setCatalog] = useState<CatalogResponse>({ characters: [], worlds: [] });
   const [isCatalogLoading, setIsCatalogLoading] = useState(false);
   const [isCatalogSaving, setIsCatalogSaving] = useState<CatalogKind | null>(null);
@@ -1479,7 +1485,7 @@ export default function Home() {
     characterYOffset,
   });
 
-  const loadCatalog = async () => {
+  const loadCatalog = useCallback(async () => {
     setIsCatalogLoading(true);
     setCatalogNotice(null);
     try {
@@ -1492,10 +1498,14 @@ export default function Home() {
     } finally {
       setIsCatalogLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    void loadCatalog();
+  }, [loadCatalog]);
 
   const openCatalog = () => {
-    setIsCatalogOpen(true);
+    setWorkspaceView("catalog");
     void loadCatalog();
   };
 
@@ -1532,6 +1542,7 @@ export default function Home() {
         body: JSON.stringify({
           id: loadedCatalogIds[kind],
           kind,
+          mode: gameMode,
           name,
           thumbnailUrl,
           snapshot,
@@ -1542,7 +1553,6 @@ export default function Home() {
         throw new Error(data.error || "Could not save catalog entry");
       }
       setLoadedCatalogIds((prev) => ({ ...prev, [kind]: data.entry!.id }));
-      setCatalogTab(kind);
       await loadCatalog();
       setCatalogNotice(`${kind === "character" ? "Character" : "World"} saved to project catalog.`);
     } catch (err) {
@@ -1671,7 +1681,7 @@ export default function Home() {
       setLoadedCatalogIds({ world: entry.id });
     }
     setError(null);
-    setIsCatalogOpen(false);
+    setWorkspaceView("creator");
   };
 
   const removeCatalogEntry = async (entry: CatalogEntry) => {
@@ -1695,115 +1705,138 @@ export default function Home() {
     }
   };
 
+  const resetCreator = (mode: CatalogGameMode = "side-scroller") => {
+    setCurrentStep(1);
+    setCompletedSteps(new Set());
+    setGameMode(mode);
+    setCharacterImageUrl(null);
+    setWalkSpriteSheetUrl(null);
+    setJumpSpriteSheetUrl(null);
+    setAttackSpriteSheetUrl(null);
+    setIdleSpriteSheetUrl(null);
+    setWalkBgRemovedUrl(null);
+    setJumpBgRemovedUrl(null);
+    setAttackBgRemovedUrl(null);
+    setIdleBgRemovedUrl(null);
+    setWalkExtractedFrames([]);
+    setJumpExtractedFrames([]);
+    setAttackExtractedFrames([]);
+    setIdleExtractedFrames([]);
+    setCharacterPrompt("");
+    setInputImageUrl("");
+    setCharacterInputMode("text");
+    setBackgroundMode("default");
+    setCharacterYOffset(0);
+    setCustomBackgroundLayers({ layer1Url: null, layer2Url: null, layer3Url: null });
+    setCustomBgLayerOffsets([0, 0, 0]);
+    setCustomBgLayerVisibility([true, true, true]);
+    setIsometricMapUrl(null);
+    setIsometricMapScale(1);
+    setIsoIdleUrl(null);
+    setIsoIdleBgUrl(null);
+    setIsoIdleFrames([]);
+    setIsoAttackDownUrl(null);
+    setIsoAttackUpUrl(null);
+    setIsoAttackSideUrl(null);
+    setIsoAttackDownBgUrl(null);
+    setIsoAttackUpBgUrl(null);
+    setIsoAttackSideBgUrl(null);
+    setIsoAttackDownFrames([]);
+    setIsoAttackUpFrames([]);
+    setIsoAttackSideFrames([]);
+    setSideScrollerScales(DEFAULT_SIDE_SCROLLER_SCALES);
+    setIsometricScales(DEFAULT_ISOMETRIC_SCALES);
+    setLoadedCatalogIds({});
+    setError(null);
+  };
+
+  const startCatalogCreation = (kind: CatalogKind, mode: CatalogGameMode) => {
+    resetCreator(mode);
+    setCreatorIntent(kind);
+    setWorkspaceView("creator");
+  };
+
+  const openClassicCreator = (mode: CatalogGameMode) => {
+    resetCreator(mode);
+    setCreatorIntent("classic");
+    setWorkspaceView("creator");
+  };
+
+  const editCatalogEntry = (
+    entry: CatalogEntry,
+    focus?: "animations" | "world"
+  ) => {
+    restoreCatalogEntry(entry);
+    setCreatorIntent(entry.kind === "world" ? "world" : "character");
+    if (focus === "animations") setCurrentStep(entry.animationCount > 0 ? 2 : 1);
+    if (focus === "world") setCurrentStep(6);
+  };
+
+  const hasCurrentWorld = Boolean(
+    isometricMapUrl ||
+    customBackgroundLayers.layer1Url ||
+    customBackgroundLayers.layer2Url ||
+    customBackgroundLayers.layer3Url
+  );
+
   return (
     <main className="container">
       <header className="header">
         <div className="header-logo">
           <AgentLogo size={36} />
-          <h1>Sprite Sheet Creator</h1>
+          <h1>BRANDPASTE</h1>
         </div>
-        <p>Create pixel art sprite sheets with your VPS Codex Agent</p>
-        <button className="btn btn-secondary catalog-open-button" onClick={openCatalog}>
-          <span aria-hidden="true">▦</span> Project Catalog
-        </button>
-      </header>
-
-      {isCatalogOpen && (
-        <div className="catalog-overlay" role="presentation" onMouseDown={() => setIsCatalogOpen(false)}>
-          <section
-            className="catalog-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="catalog-title"
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <div className="catalog-header">
-              <div>
-                <h2 id="catalog-title">Project Catalog</h2>
-                <p>Characters, sprite sheets, and worlds stored in the BRANDPASTE GitHub project.</p>
-              </div>
-              <button className="catalog-close" onClick={() => setIsCatalogOpen(false)} aria-label="Close catalog">×</button>
-            </div>
-
-            <div className="catalog-save-actions">
+        <p>{workspaceView === "catalog" ? "Your reusable game asset library" : "Character-to-world creation workflow"}</p>
+        {workspaceView === "creator" && (
+          <div className="creator-header-actions">
+            {characterImageUrl && (
               <button
                 className="btn btn-primary"
-                disabled={!characterImageUrl || isCatalogSaving !== null}
+                disabled={isCatalogSaving !== null}
                 onClick={() => void saveCurrentToCatalog("character")}
               >
-                {isCatalogSaving === "character" ? "Saving…" : loadedCatalogIds.character ? "Update Character" : "Save Current Character"}
+                {loadedCatalogIds.character ? "Update Character" : "Save Character"}
               </button>
+            )}
+            {hasCurrentWorld && (
               <button
                 className="btn btn-success"
-                disabled={
-                  !characterImageUrl ||
-                  !(isometricMapUrl || customBackgroundLayers.layer1Url || customBackgroundLayers.layer2Url || customBackgroundLayers.layer3Url) ||
-                  isCatalogSaving !== null
-                }
+                disabled={isCatalogSaving !== null}
                 onClick={() => void saveCurrentToCatalog("world")}
               >
-                {isCatalogSaving === "world" ? "Saving…" : loadedCatalogIds.world ? "Update World" : "Save Current World"}
+                {loadedCatalogIds.world ? "Update World" : "Save World"}
               </button>
-            </div>
+            )}
+            <button className="btn btn-secondary" onClick={openCatalog}>
+              ← Back to Catalog
+            </button>
+          </div>
+        )}
+      </header>
 
-            <div className="catalog-tabs" role="tablist" aria-label="Catalog type">
-              <button
-                role="tab"
-                aria-selected={catalogTab === "character"}
-                className={catalogTab === "character" ? "active" : ""}
-                onClick={() => setCatalogTab("character")}
-              >
-                Characters <span>{catalog.characters.length}</span>
-              </button>
-              <button
-                role="tab"
-                aria-selected={catalogTab === "world"}
-                className={catalogTab === "world" ? "active" : ""}
-                onClick={() => setCatalogTab("world")}
-              >
-                Worlds <span>{catalog.worlds.length}</span>
-              </button>
-            </div>
-
-            {catalogNotice && <div className="catalog-notice">{catalogNotice}</div>}
-
-            <div className="catalog-content">
-              {isCatalogLoading ? (
-                <div className="catalog-empty"><AgentSpinner size={38} /><span>Loading project catalog…</span></div>
-              ) : (catalogTab === "character" ? catalog.characters : catalog.worlds).length === 0 ? (
-                <div className="catalog-empty">
-                  <span className="catalog-empty-icon">◇</span>
-                  <strong>No {catalogTab === "character" ? "characters" : "worlds"} saved yet</strong>
-                  <span>Generate one, then use the save button above.</span>
-                </div>
-              ) : (
-                <div className="catalog-grid">
-                  {(catalogTab === "character" ? catalog.characters : catalog.worlds).map((entry) => (
-                    <article className="catalog-card" key={entry.id}>
-                      <div className="catalog-thumbnail">
-                        {entry.thumbnailUrl ? (
-                          <img src={entry.thumbnailUrl} alt="" />
-                        ) : (
-                          <span>◇</span>
-                        )}
-                        {loadedCatalogIds[entry.kind] === entry.id && <span className="catalog-current">Current</span>}
-                      </div>
-                      <div className="catalog-card-body">
-                        <strong title={entry.name}>{entry.name}</strong>
-                        <span>{new Date(entry.updatedAt).toLocaleString()}</span>
-                        <div className="catalog-card-actions">
-                          <button className="btn btn-primary" onClick={() => restoreCatalogEntry(entry)}>Open</button>
-                          <button className="btn btn-secondary catalog-delete" onClick={() => void removeCatalogEntry(entry)}>Delete</button>
-                        </div>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              )}
-            </div>
-          </section>
-        </div>
-      )}
+      {workspaceView === "catalog" ? (
+        <CatalogDashboard
+          catalog={catalog}
+          isLoading={isCatalogLoading}
+          notice={catalogNotice}
+          isSaving={isCatalogSaving}
+          loadedCatalogIds={loadedCatalogIds}
+          hasCurrentCharacter={Boolean(characterImageUrl)}
+          hasCurrentWorld={hasCurrentWorld}
+          onRefresh={() => void loadCatalog()}
+          onCreate={startCatalogCreation}
+          onOpenClassicCreator={openClassicCreator}
+          onEdit={editCatalogEntry}
+          onDelete={(entry) => void removeCatalogEntry(entry)}
+          onSaveCurrent={(kind) => void saveCurrentToCatalog(kind)}
+        />
+      ) : (
+        <>
+      <div className="creator-context-bar">
+        <span>{creatorIntent === "world" ? "WORLD CREATOR" : creatorIntent === "character" ? "CHARACTER CREATOR" : "CLASSIC CREATOR"}</span>
+        <strong>{gameMode === "isometric" ? "Isometric" : "Side-scroller"}</strong>
+        <small>Generated assets can be saved back to the catalog at any point.</small>
+      </div>
 
       {/* Steps indicator */}
       <div className="steps-indicator">
@@ -3354,48 +3387,15 @@ export default function Home() {
               ← Back to Frame Extraction
             </button>
             <button className="btn btn-secondary" onClick={() => {
-              // Reset everything
-              setCurrentStep(1);
-              setCompletedSteps(new Set());
-              setCharacterImageUrl(null);
-              setWalkSpriteSheetUrl(null);
-              setJumpSpriteSheetUrl(null);
-              setAttackSpriteSheetUrl(null);
-              setIdleSpriteSheetUrl(null);
-              setWalkBgRemovedUrl(null);
-              setJumpBgRemovedUrl(null);
-              setAttackBgRemovedUrl(null);
-              setIdleBgRemovedUrl(null);
-              setWalkExtractedFrames([]);
-              setJumpExtractedFrames([]);
-              setAttackExtractedFrames([]);
-              setIdleExtractedFrames([]);
-              setCharacterPrompt("");
-              setInputImageUrl("");
-              setCharacterInputMode("text");
-              setGameMode("side-scroller");
-              setBackgroundMode("default");
-              setCharacterYOffset(0);
-              setCustomBackgroundLayers({ layer1Url: null, layer2Url: null, layer3Url: null });
-              setCustomBgLayerVisibility([true, true, true]);
-              setIsometricMapUrl(null);
-              setIsoIdleUrl(null);
-              setIsoIdleBgUrl(null);
-              setIsoIdleFrames([]);
-              setIsoAttackDownUrl(null);
-              setIsoAttackUpUrl(null);
-              setIsoAttackSideUrl(null);
-              setIsoAttackDownBgUrl(null);
-              setIsoAttackUpBgUrl(null);
-              setIsoAttackSideBgUrl(null);
-              setIsoAttackDownFrames([]);
-              setIsoAttackUpFrames([]);
-              setIsoAttackSideFrames([]);
+              resetCreator("side-scroller");
+              setCreatorIntent("classic");
             }}>
               Start New Sprite
             </button>
           </div>
         </div>
+      )}
+        </>
       )}
     </main>
   );
