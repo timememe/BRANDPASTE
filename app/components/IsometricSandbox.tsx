@@ -477,6 +477,11 @@ export default function IsometricSandbox({
     animationRef.current = requestAnimationFrame(gameLoop);
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target?.matches("input, textarea, select, [contenteditable='true']")) return;
+      if (["a", "d", "w", "s", "j", "arrowleft", "arrowright", "arrowup", "arrowdown"].includes(e.key.toLowerCase())) {
+        e.preventDefault();
+      }
       if (e.key === "d" || e.key === "D" || e.key === "ArrowRight") keysPressed.current.add("right");
       if (e.key === "a" || e.key === "A" || e.key === "ArrowLeft") keysPressed.current.add("left");
       if (e.key === "w" || e.key === "W" || e.key === "ArrowUp") keysPressed.current.add("up");
@@ -490,18 +495,27 @@ export default function IsometricSandbox({
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target?.matches("input, textarea, select, [contenteditable='true']")) return;
+      if (["a", "d", "w", "s", "arrowleft", "arrowright", "arrowup", "arrowdown"].includes(e.key.toLowerCase())) {
+        e.preventDefault();
+      }
       if (e.key === "d" || e.key === "D" || e.key === "ArrowRight") keysPressed.current.delete("right");
       if (e.key === "a" || e.key === "A" || e.key === "ArrowLeft") keysPressed.current.delete("left");
       if (e.key === "w" || e.key === "W" || e.key === "ArrowUp") keysPressed.current.delete("up");
       if (e.key === "s" || e.key === "S" || e.key === "ArrowDown") keysPressed.current.delete("down");
     };
 
+    const handleBlur = () => keysPressed.current.clear();
+
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("keyup", handleKeyUp);
+    window.addEventListener("blur", handleBlur);
 
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
+      window.removeEventListener("blur", handleBlur);
       cancelAnimationFrame(animationRef.current);
     };
   }, [walkDownFrames, gameLoop]);

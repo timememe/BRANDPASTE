@@ -27,6 +27,7 @@ interface CatalogDashboardProps {
   hasCurrentWorld: boolean;
   onRefresh: () => void;
   onCreate: (kind: CatalogKind, mode: CatalogGameMode) => void;
+  onOpenPlayground: (mode: CatalogGameMode) => void;
   onOpenClassicCreator: (mode: CatalogGameMode) => void;
   onEdit: (
     entry: CatalogEntry,
@@ -78,6 +79,7 @@ export default function CatalogDashboard({
   hasCurrentWorld,
   onRefresh,
   onCreate,
+  onOpenPlayground,
   onOpenClassicCreator,
   onEdit,
   onDelete,
@@ -150,6 +152,9 @@ export default function CatalogDashboard({
               + New World
             </button>
           </div>
+          <button className="btn btn-success" onClick={() => onOpenPlayground(createMode)}>
+            Open Catalog Playground
+          </button>
           <button className="library-classic-button" onClick={() => onOpenClassicCreator(createMode)}>
             Open classic step-by-step Creator <span aria-hidden="true">→</span>
           </button>

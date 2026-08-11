@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, lazy, Suspense } from "react";
 import CatalogDashboard from "./components/CatalogDashboard";
+import CatalogPlayground from "./components/CatalogPlayground";
 import {
   animationTypeDefinition,
   removeCharacterAnimation as removeAnimationFromSnapshot,
@@ -335,7 +336,8 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
 
   // Persistent project catalog (metadata + GitHub-backed generated assets)
-  const [workspaceView, setWorkspaceView] = useState<"catalog" | "creator">("catalog");
+  const [workspaceView, setWorkspaceView] = useState<"catalog" | "creator" | "playground">("catalog");
+  const [playgroundMode, setPlaygroundMode] = useState<CatalogGameMode>("side-scroller");
   const [creatorIntent, setCreatorIntent] = useState<"character" | "world" | "classic">("classic");
   const [requestedAnimationType, setRequestedAnimationType] = useState<AnimationTypeId | null>(null);
   const [catalog, setCatalog] = useState<CatalogResponse>({ characters: [], worlds: [] });
@@ -1821,6 +1823,11 @@ export default function Home() {
     void loadCatalog();
   };
 
+  const openPlayground = (mode: CatalogGameMode) => {
+    setPlaygroundMode(mode);
+    setWorkspaceView("playground");
+  };
+
   const saveCurrentToCatalog = async (kind: CatalogKind) => {
     const hasWorld = Boolean(
       isometricMapUrl ||
@@ -2167,7 +2174,9 @@ export default function Home() {
         <p>
           {workspaceView === "catalog"
             ? "Your reusable game asset library"
-            : creatorIntent === "world"
+            : workspaceView === "playground"
+              ? "Play saved characters inside saved worlds"
+              : creatorIntent === "world"
               ? "Independent world creation workspace"
               : "Character and animation creation workflow"}
         </p>
@@ -2209,12 +2218,15 @@ export default function Home() {
           hasCurrentWorld={hasCurrentWorld}
           onRefresh={() => void loadCatalog()}
           onCreate={startCatalogCreation}
+          onOpenPlayground={openPlayground}
           onOpenClassicCreator={openClassicCreator}
           onEdit={editCatalogEntry}
           onDelete={(entry) => void removeCatalogEntry(entry)}
           onDeleteAnimation={(entry, animationType) => void deleteCharacterAnimation(entry, animationType)}
           onSaveCurrent={(kind) => void saveCurrentToCatalog(kind)}
         />
+      ) : workspaceView === "playground" ? (
+        <CatalogPlayground catalog={catalog} initialMode={playgroundMode} onBack={openCatalog} />
       ) : (
         <>
       <div className="creator-context-bar">

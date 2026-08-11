@@ -1908,6 +1908,278 @@ input, textarea {
   animation: agent-spin 0.9s linear infinite;
 }
 
+/* Catalog Playground */
+.playground-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.playground-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: 1.5rem;
+  background:
+    radial-gradient(circle at 12% 15%, rgba(171, 119, 255, 0.16), transparent 34%),
+    radial-gradient(circle at 88% 100%, rgba(56, 172, 198, 0.1), transparent 36%),
+    var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+}
+
+.playground-heading h2 {
+  margin: 0 0 0.45rem;
+  font-size: clamp(1.55rem, 3vw, 2.35rem);
+  letter-spacing: -0.035em;
+}
+
+.playground-heading p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.86rem;
+}
+
+.playground-heading .btn {
+  width: auto;
+  flex: 0 0 auto;
+}
+
+.playground-mode-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem;
+  padding: 0.35rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+}
+
+.playground-mode-switch button {
+  padding: 0.65rem 0.8rem;
+  color: var(--text-tertiary);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.playground-mode-switch button.active {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+  border-color: var(--border-color-hover);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.18);
+}
+
+.playground-layout {
+  display: grid;
+  grid-template-columns: minmax(250px, 0.7fr) minmax(0, 2fr);
+  gap: 1rem;
+  align-items: stretch;
+}
+
+.playground-picker,
+.playground-stage {
+  min-width: 0;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+}
+
+.playground-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  padding: 1rem;
+}
+
+.playground-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.playground-field > label {
+  color: var(--text-tertiary);
+  font-size: 0.65rem;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.playground-field select {
+  width: 100%;
+  min-height: 42px;
+  padding: 0.55rem 0.65rem;
+  overflow: hidden;
+  color: var(--text-primary);
+  text-overflow: ellipsis;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 7px;
+  outline: none;
+}
+
+.playground-field select:focus {
+  border-color: var(--fal-purple-light);
+}
+
+.playground-selection-card {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: 0.65rem;
+  align-items: center;
+  padding: 0.55rem;
+  background: rgba(255, 255, 255, 0.018);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+.playground-selection-card > img,
+.playground-selection-card > span {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  display: grid;
+  place-items: center;
+  background: var(--bg-primary);
+  border-radius: 6px;
+  image-rendering: pixelated;
+}
+
+.playground-selection-card.world > img {
+  object-fit: cover;
+}
+
+.playground-selection-card > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.playground-selection-card strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8rem;
+}
+
+.playground-selection-card small {
+  color: var(--text-tertiary);
+  font-size: 0.65rem;
+}
+
+.playground-join {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  align-self: center;
+  color: var(--fal-purple-light);
+  background: rgba(171, 119, 255, 0.08);
+  border: 1px solid rgba(171, 119, 255, 0.22);
+  border-radius: 50%;
+  font-size: 1rem;
+}
+
+.playground-launch {
+  width: 100%;
+  min-height: 44px;
+  margin-top: auto;
+}
+
+.playground-requirement {
+  color: var(--text-tertiary);
+  font-size: 0.66rem;
+  line-height: 1.45;
+}
+
+.playground-error {
+  margin: 0;
+  padding: 0.65rem;
+  font-size: 0.7rem;
+}
+
+.playground-stage {
+  display: grid;
+  min-height: 485px;
+  place-items: center;
+  overflow: hidden;
+  padding: 0.8rem;
+  background:
+    linear-gradient(45deg, rgba(255,255,255,.018) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(255,255,255,.018) 25%, transparent 25%),
+    var(--bg-primary);
+  background-size: 24px 24px;
+}
+
+.playground-stage-empty {
+  display: flex;
+  min-height: 340px;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 0.45rem;
+  color: var(--text-tertiary);
+  text-align: center;
+}
+
+.playground-stage-empty > span {
+  color: var(--fal-purple-light);
+  font-size: 2.5rem;
+}
+
+.playground-stage-empty strong {
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+}
+
+.playground-stage-empty small {
+  font-size: 0.68rem;
+}
+
+.playground-running {
+  width: 100%;
+  max-width: 800px;
+}
+
+.playground-running .pixi-canvas-wrapper canvas {
+  width: 100%;
+  height: auto;
+}
+
+.playground-controls {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.55rem 1rem;
+  margin-top: 0.7rem;
+  color: var(--text-tertiary);
+  font-size: 0.66rem;
+}
+
+.playground-controls span {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.playground-controls kbd {
+  min-width: 22px;
+  padding: 0.18rem 0.3rem;
+  color: var(--text-secondary);
+  text-align: center;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color-hover);
+  border-radius: 4px;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+  font: inherit;
+  font-weight: 750;
+}
+
 /* Responsive */
 @media (max-width: 640px) {
   .container {
@@ -2057,6 +2329,24 @@ input, textarea {
 
   .requested-animation-panel .btn {
     width: 100%;
+  }
+
+  .playground-heading {
+    flex-direction: column;
+    padding: 1.1rem;
+  }
+
+  .playground-heading .btn {
+    width: 100%;
+  }
+
+  .playground-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .playground-stage {
+    min-height: 300px;
+    padding: 0.35rem;
   }
 
   .library-card-actions .btn {

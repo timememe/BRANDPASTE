@@ -617,6 +617,11 @@ export default function PixiSandbox({ walkFrames, jumpFrames, attackFrames, idle
     animationRef.current = requestAnimationFrame(gameLoop);
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target?.matches("input, textarea, select, [contenteditable='true']")) return;
+      if (["a", "d", "w", "j", "arrowleft", "arrowright", "arrowup"].includes(e.key.toLowerCase())) {
+        e.preventDefault();
+      }
       if (e.key === "d" || e.key === "D" || e.key === "ArrowRight") {
         keysPressed.current.add("right");
       }
@@ -639,6 +644,11 @@ export default function PixiSandbox({ walkFrames, jumpFrames, attackFrames, idle
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target?.matches("input, textarea, select, [contenteditable='true']")) return;
+      if (["a", "d", "w", "arrowleft", "arrowright", "arrowup"].includes(e.key.toLowerCase())) {
+        e.preventDefault();
+      }
       if (e.key === "d" || e.key === "D" || e.key === "ArrowRight") {
         keysPressed.current.delete("right");
       }
@@ -647,12 +657,16 @@ export default function PixiSandbox({ walkFrames, jumpFrames, attackFrames, idle
       }
     };
 
+    const handleBlur = () => keysPressed.current.clear();
+
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("keyup", handleKeyUp);
+    window.addEventListener("blur", handleBlur);
 
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
+      window.removeEventListener("blur", handleBlur);
       cancelAnimationFrame(animationRef.current);
     };
   }, [walkFrames, gameLoop]);
