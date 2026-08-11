@@ -1,0 +1,7 @@
+NEXTJS_ENV=development
+CODEX_AGENT_BASE_URL=https://agent.worldorder.online
+CODEX_AGENT_SERVICE_TOKEN=replace_with_service_token
+CODEX_AGENT_CWD=/workspace/sprite-sheet-creator-vps
+CODEX_AGENT_REPO=sprite-sheet-creator-vps
+CODEX_AGENT_TIMEOUT_MS=650000
+CODEX_AGENT_MAX_RETRIES=2

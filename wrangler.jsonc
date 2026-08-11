@@ -1,0 +1,21 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "sprite-sheet-creator-codex",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-08-11",
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "CODEX_AGENT_BASE_URL": "https://agent.worldorder.online",
+    "CODEX_AGENT_CWD": "/workspace/sprite-sheet-creator-vps",
+    "CODEX_AGENT_REPO": "sprite-sheet-creator-vps",
+    "CODEX_AGENT_TIMEOUT_MS": "650000",
+    "CODEX_AGENT_MAX_RETRIES": "2"
+  },
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "observability": {
+    "enabled": true
+  }
+}
