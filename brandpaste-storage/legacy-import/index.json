@@ -1,0 +1,33 @@
+{
+    "assets":  [
+                   {
+                       "originalManifest":  "sprite-bridge-39afa8c3-68fe-4c07-9f64-0bcecc8e963c-output.png.manifest.json",
+                       "githubPath":  "brandpaste-storage/legacy-import/sprite-bridge-39afa8c3-68fe-4c07-9f64-0bcecc8e963c-output.png",
+                       "width":  941,
+                       "height":  1672,
+                       "sha":  "7a7d038a32c12c9c746addcd62f54e1539cfaac1"
+                   },
+                   {
+                       "originalManifest":  "sprite-bridge-4b4c7459-4aae-4c41-98bd-d9a0f03f4c90-output.png.manifest.json",
+                       "githubPath":  "brandpaste-storage/legacy-import/sprite-bridge-4b4c7459-4aae-4c41-98bd-d9a0f03f4c90-output.png",
+                       "width":  1254,
+                       "height":  1254,
+                       "sha":  "28e529fa879b44ada4f3aaf8de1697a63b042902"
+                   },
+                   {
+                       "originalManifest":  "sprite-bridge-dc97a867-609f-4afa-9163-faa47611b4a6-output.png.manifest.json",
+                       "githubPath":  "brandpaste-storage/legacy-import/sprite-bridge-dc97a867-609f-4afa-9163-faa47611b4a6-output.png",
+                       "width":  1254,
+                       "height":  1254,
+                       "sha":  "848837bf7dde944d89bc26b6b4cb226f19b45189"
+                   },
+                   {
+                       "originalManifest":  "sprite-bridge-ef3b6ed9-2790-4fa1-b122-449ad1222281-output.png.manifest.json",
+                       "githubPath":  "brandpaste-storage/legacy-import/sprite-bridge-ef3b6ed9-2790-4fa1-b122-449ad1222281-output.png",
+                       "width":  1254,
+                       "height":  1254,
+                       "sha":  "648d3dd39f72386374dfe6a97c4d5538e1974711"
+                   }
+               ],
+    "migratedAt":  "2026-08-11T07:46:51.5792949Z"
+}
