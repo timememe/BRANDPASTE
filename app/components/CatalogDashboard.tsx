@@ -2,10 +2,13 @@
 
 import { useMemo, useState } from "react";
 import {
+  ANIMATION_PACKS,
   ANIMATION_TYPES,
+  animationPacksForMode,
   animationTypesForMode,
+  animationTypesForPack,
   characterAnimationAssets,
-  type AnimationTypeDefinition,
+  isPackCompatible,
   type AnimationTypeId,
 } from "../lib/animation-catalog";
 import type {
@@ -64,11 +67,6 @@ function modeLabel(mode: CatalogGameMode): string {
   return mode === "isometric" ? "Isometric" : "Side-scroller";
 }
 
-function typeMatchesSearch(definition: AnimationTypeDefinition, search: string): boolean {
-  return !search || [definition.label, definition.category, definition.description]
-    .some((value) => value.toLowerCase().includes(search));
-}
-
 export default function CatalogDashboard({
   catalog,
   isLoading,
@@ -108,16 +106,16 @@ export default function CatalogDashboard({
     (!normalizedSearch || entry.name.toLowerCase().includes(normalizedSearch));
   const visibleCharacters = catalog.characters.filter(matchesEntry);
   const visibleWorlds = catalog.worlds.filter(matchesEntry);
-  const visibleAnimationTypes = ANIMATION_TYPES.filter(
-    (definition) =>
-      (modeFilter === "all" || definition.mode === modeFilter) &&
-      typeMatchesSearch(definition, normalizedSearch)
+  const visibleAnimationPacks = ANIMATION_PACKS.filter(
+    (pack) => {
+      if (modeFilter !== "all" && pack.mode !== modeFilter) return false;
+      if (!normalizedSearch) return true;
+      const animations = animationTypesForPack(pack.id);
+      return [pack.label, pack.description, ...pack.tags].some((value) => value.toLowerCase().includes(normalizedSearch)) ||
+        animations.some((definition) => [definition.label, definition.category, definition.description, ...definition.tags]
+          .some((value) => value.toLowerCase().includes(normalizedSearch)));
+    }
   );
-
-  const selectedTarget = (mode: CatalogGameMode): CatalogEntry | undefined => {
-    const candidates = catalog.characters.filter((entry) => entry.mode === mode);
-    return candidates.find((entry) => entry.id === animationTargetIds[mode]) || candidates[0];
-  };
 
   const selectTarget = (mode: CatalogGameMode, id: string) => {
     setAnimationTargetIds((current) => ({ ...current, [mode]: id }));
@@ -128,10 +126,10 @@ export default function CatalogDashboard({
       <div className="library-hero">
         <div className="library-hero-copy">
           <span className="library-eyebrow">BRANDPASTE ASSET LIBRARY</span>
-          <h2>Your characters, animation types, and worlds</h2>
+          <h2>Your characters, animation packs, and worlds</h2>
           <p>
-            Generated sprite sheets live inside their character. The animation catalog
-            describes the reusable motion types that BRANDPASTE can generate.
+            Generated sprite sheets live inside their character. Tagged animation packs
+            group the reusable motions that compatible characters can generate.
           </p>
         </div>
         <div className="library-create-panel">
@@ -193,7 +191,7 @@ export default function CatalogDashboard({
       <div className="library-stats">
         <div><strong>{catalog.characters.length}</strong><span>Characters</span></div>
         <div><strong>{generatedAnimationCount}</strong><span>Character animations</span></div>
-        <div><strong>{ANIMATION_TYPES.length}</strong><span>Animation types</span></div>
+        <div><strong>{ANIMATION_PACKS.length}</strong><span>Animation packs / {ANIMATION_TYPES.length} types</span></div>
         <div><strong>{catalog.worlds.length}</strong><span>Worlds</span></div>
       </div>
 
@@ -201,7 +199,7 @@ export default function CatalogDashboard({
         <div className="library-tabs" role="tablist" aria-label="Asset type">
           {([
             ["characters", "Characters", catalog.characters.length],
-            ["animations", "Animation Types", ANIMATION_TYPES.length],
+            ["animations", "Animation Packs", ANIMATION_PACKS.length],
             ["worlds", "Worlds", catalog.worlds.length],
           ] as const).map(([value, label, count]) => (
             <button
@@ -219,7 +217,7 @@ export default function CatalogDashboard({
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder={section === "animations" ? "Search animation types..." : "Search assets..."}
+            placeholder={section === "animations" ? "Search packs, tags, or animations..." : "Search assets..."}
             aria-label="Search catalog"
           />
           <select
@@ -248,6 +246,10 @@ export default function CatalogDashboard({
               const missingAnimations = animationTypesForMode(entry.mode).filter(
                 (definition) => !generatedIds.has(definition.id)
               );
+              const missingPackGroups = animationPacksForMode(entry.mode).map((pack) => ({
+                pack,
+                animations: animationTypesForPack(pack.id).filter((definition) => !generatedIds.has(definition.id)),
+              })).filter((group) => group.animations.length > 0);
               return (
                 <article className="library-card character-library-card" key={entry.id}>
                   <div className="library-card-media character-media">
@@ -317,17 +319,22 @@ export default function CatalogDashboard({
 
                     {missingAnimations.length > 0 && (
                       <div className="character-animation-missing">
-                        <span>Available to add</span>
-                        <div>
-                          {missingAnimations.map((definition) => (
-                            <button
-                              key={definition.id}
-                              onClick={() => onEdit(entry, "animations", definition.id)}
-                            >
-                              + {definition.label}
-                            </button>
-                          ))}
-                        </div>
+                        <span>Compatible packs available to add</span>
+                        {missingPackGroups.map(({ pack, animations }) => (
+                          <div className="character-missing-pack" key={pack.id}>
+                            <strong>{pack.label}</strong>
+                            <div>
+                              {animations.map((definition) => (
+                                <button
+                                  key={definition.id}
+                                  onClick={() => onEdit(entry, "animations", definition.id)}
+                                >
+                                  + {definition.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     )}
                   </section>
@@ -337,55 +344,87 @@ export default function CatalogDashboard({
           </div>
         ) : <LibraryEmpty title="No characters found" text="Create a character or change the current filters." onCreate={() => onCreate("character", createMode)} />
       ) : section === "animations" ? (
-        visibleAnimationTypes.length > 0 ? (
+        visibleAnimationPacks.length > 0 ? (
           <>
             <div className="animation-type-intro">
               <div>
-                <strong>Generation capability catalog</strong>
-                <span>These are reusable motion definitions—not generated files. Choose a compatible character to create or replace its sprite sheet.</span>
+                <strong>Tagged animation pack catalog</strong>
+                <span>Packs group reusable generation capabilities. A pack appears for a character only when its required tags match the character mode.</span>
               </div>
             </div>
-            <div className="library-grid animation-type-grid">
-              {visibleAnimationTypes.map((definition) => {
-                const candidates = catalog.characters.filter((entry) => entry.mode === definition.mode);
-                const target = selectedTarget(definition.mode);
-                const targetHasAnimation = target
-                  ? characterAnimationAssets(target).some((asset) => asset.definition.id === definition.id)
-                  : false;
+            <div className="animation-pack-grid">
+              {visibleAnimationPacks.map((pack) => {
+                const definitions = animationTypesForPack(pack.id);
+                const candidates = catalog.characters.filter((entry) => isPackCompatible(entry, pack));
+                const target = candidates.find((entry) => entry.id === animationTargetIds[pack.mode]) || candidates[0];
+                const generatedIds = new Set(
+                  target ? characterAnimationAssets(target).map((asset) => asset.definition.id) : []
+                );
+                const definition = definitions[0];
                 return (
-                  <article className="library-card animation-type-card" key={definition.id}>
-                    <div className={`animation-type-visual ${definition.category.toLowerCase()}`}>
+                  <article className={`library-card animation-pack-card ${pack.accent}`} key={pack.id}>
+                    <div className={`animation-type-visual ${pack.accent}`}>
                       <span>{definition.category === "Movement" ? "↗" : definition.category === "Combat" ? "✦" : "◌"}</span>
-                      <small>{definition.frames} frames · 2×2 · {definition.aspectRatio}</small>
+                      <small>{definitions.length} animation{definitions.length === 1 ? "" : "s"}</small>
                     </div>
                     <div className="library-card-body">
                       <div className="animation-type-title">
-                        <div><strong>{definition.label}</strong><span>{definition.category}</span></div>
-                        <span className={`library-mode-badge inline ${definition.mode}`}>{modeLabel(definition.mode)}</span>
+                        <div><strong>{pack.label}</strong><span>Animation pack</span></div>
+                        <span className={`library-mode-badge inline ${pack.mode}`}>{modeLabel(pack.mode)}</span>
                       </div>
-                      <p>{definition.description}</p>
+                      <p>{pack.description}</p>
+                      <div className="animation-pack-tags">
+                        {pack.tags.map((tag) => <span key={tag}>#{tag}</span>)}
+                      </div>
                       {candidates.length > 0 ? (
                         <div className="animation-type-target">
-                          <label htmlFor={`target-${definition.id}`}>Character</label>
+                          <label htmlFor={`target-${pack.id}`}>Compatible character</label>
                           <select
-                            id={`target-${definition.id}`}
+                            id={`target-${pack.id}`}
                             value={target?.id || ""}
-                            onChange={(event) => selectTarget(definition.mode, event.target.value)}
+                            onChange={(event) => selectTarget(pack.mode, event.target.value)}
                           >
                             {candidates.map((entry) => <option value={entry.id} key={entry.id}>{entry.name}</option>)}
                           </select>
-                          <button
-                            className="btn btn-primary"
-                            disabled={!target}
-                            onClick={() => target && onEdit(target, "animations", definition.id)}
-                          >
-                            {targetHasAnimation ? "Edit / regenerate" : "Generate sprite sheet"}
-                          </button>
+                          <div className="animation-pack-list">
+                            {definitions.map((item) => {
+                              const generated = generatedIds.has(item.id);
+                              return (
+                                <div className="animation-pack-item" key={item.id}>
+                                  <div>
+                                    <strong>{item.label}</strong>
+                                    <small>{item.category} · {item.frames} frames · {item.aspectRatio}</small>
+                                    <p>{item.description}</p>
+                                  </div>
+                                  <button
+                                    disabled={!target}
+                                    onClick={() => target && onEdit(target, "animations", item.id)}
+                                  >
+                                    {generated ? "Edit / regenerate" : "+ Add to character"}
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
                       ) : (
-                        <button className="btn btn-secondary" onClick={() => onCreate("character", definition.mode)}>
-                          Create {modeLabel(definition.mode)} character first
-                        </button>
+                        <div className="animation-pack-no-target">
+                          <button className="btn btn-secondary" onClick={() => onCreate("character", pack.mode)}>
+                            Create {modeLabel(pack.mode)} character first
+                          </button>
+                          <div className="animation-pack-list">
+                            {definitions.map((item) => (
+                              <div className="animation-pack-item" key={item.id}>
+                                <div>
+                                  <strong>{item.label}</strong>
+                                  <small>{item.category} · {item.frames} frames · {item.aspectRatio}</small>
+                                  <p>{item.description}</p>
+                                </div>
+                                <button disabled>+ Add to character</button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
                       )}
                     </div>
                   </article>
@@ -393,7 +432,7 @@ export default function CatalogDashboard({
               })}
             </div>
           </>
-        ) : <LibraryEmpty title="No animation types found" text="Change the current search or mode filter." onCreate={() => setModeFilter("all")} />
+        ) : <LibraryEmpty title="No animation packs found" text="Change the current search, tag, or mode filter." onCreate={() => setModeFilter("all")} />
       ) : visibleWorlds.length > 0 ? (
         <div className="library-grid world-grid">
           {visibleWorlds.map((entry) => {

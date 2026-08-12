@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { codexErrorDetails } from "../../lib/codex-agent";
 import { generateImage, AspectRatio } from "../../lib/generate-image";
+import type { AnimationTypeId } from "../../lib/animation-catalog";
 
 export const runtime = "nodejs";
 export const maxDuration = 700;
@@ -64,6 +65,28 @@ Frame 4 (bottom-right): Exhale - returning to neutral, slight settle
 Keep movements SUBTLE - this is a gentle breathing/idle loop, not dramatic motion. Character should look alive but relaxed.
 
 Use detailed 32-bit pixel art style with proper shading and highlights. Same character design in all frames. Character facing right.`;
+
+const HURT_SPRITE_PROMPT = `Create a 4-frame pixel art TAKE DAMAGE reaction sprite sheet of this character for a side-scrolling game.
+
+Arrange the 4 frames in a clean 2x2 grid on a perfectly flat white background. Keep the character facing RIGHT in every frame.
+
+Frame 1: first contact and a sharp flinch.
+Frame 2: torso recoils backward from the hit.
+Frame 3: maximum hit-stun pose with a readable silhouette.
+Frame 4: beginning to recover toward the normal stance.
+
+Do not show an attacker, weapon, blood, text, UI, floor, or scenery. Preserve the exact character design, proportions, equipment, and pixel-art style. Use detailed polished 32-bit pixel art.`;
+
+const KNOCKDOWN_SPRITE_PROMPT = `Create a 4-frame pixel art KNOCKDOWN reaction sprite sheet of this character for a side-scrolling game.
+
+Arrange the 4 frames in a clean 2x2 grid on a perfectly flat white background. Keep the character oriented toward the RIGHT.
+
+Frame 1: heavy impact sends the character off balance.
+Frame 2: falling backward or downward.
+Frame 3: grounded knockdown pose.
+Frame 4: first recovery movement while still close to the ground.
+
+Do not show an attacker, weapon, blood, text, UI, floor, or scenery. Preserve the exact character design and make every pose fit fully inside its cell. Use detailed polished 32-bit pixel art.`;
 
 // Isometric (top-down RPG) sprite prompts
 const WALK_DOWN_SPRITE_PROMPT = `Create a 4-frame pixel art walk cycle sprite sheet of this character walking DOWNWARD (toward the camera) in a top-down isometric RPG perspective (3/4 overhead view, like a classic top-down RPG).
@@ -183,13 +206,53 @@ Keep movements SUBTLE - this is a gentle breathing/idle loop, not dramatic motio
 
 Use detailed 32-bit pixel art style with proper shading and highlights. Same character design in all frames.`;
 
-type SpriteType = "walk" | "jump" | "attack" | "idle" | "walk-down" | "walk-up" | "walk-side" | "attack-down" | "attack-up" | "attack-side" | "idle-iso";
+const SHOOT_DOWN_SPRITE_PROMPT = `Create a 4-frame pixel art FIREARM SHOOTING animation sprite sheet of this character facing DOWNWARD (toward the camera) in a top-down isometric 3/4 overhead perspective.
+
+Give the character a firearm that fits their design and keep that exact weapon consistent in all frames. Arrange the frames in a clean 2x2 grid on a perfectly flat white background.
+
+Frame 1: stable aiming pose.
+Frame 2: trigger pull and small muzzle flash.
+Frame 3: readable recoil at peak extension.
+Frame 4: weapon settles back onto target.
+
+Do not show bullets crossing cell boundaries, enemies, text, UI, floor, or scenery. Preserve the character's exact appearance and use polished 32-bit pixel art.`;
+
+const SHOOT_UP_SPRITE_PROMPT = `Create a 4-frame pixel art FIREARM SHOOTING animation sprite sheet of this character facing UPWARD (away from the camera) in a top-down isometric 3/4 overhead perspective.
+
+Reference images may show the same character firing toward the camera. Use the exact same firearm, grip, muzzle flash, and recoil language from that reference, now shown from behind. Arrange the frames in a clean 2x2 grid on a perfectly flat white background.
+
+Frame 1: aim. Frame 2: fire. Frame 3: peak recoil. Frame 4: settle.
+
+Do not show enemies, text, UI, floor, or scenery. Preserve the character design and use polished 32-bit pixel art.`;
+
+const SHOOT_SIDE_SPRITE_PROMPT = `Create a 4-frame pixel art FIREARM SHOOTING animation sprite sheet of this character facing RIGHT in a top-down isometric 3/4 overhead perspective.
+
+Reference images may show the same character firing in another direction. Use the exact same firearm, grip, muzzle flash, and recoil language. Arrange the frames in a clean 2x2 grid on a perfectly flat white background.
+
+Frame 1: side-profile aim. Frame 2: fire to the right. Frame 3: peak recoil. Frame 4: settle. The left-facing version will be mirrored at runtime.
+
+Do not show enemies, text, UI, floor, or scenery. Preserve the character design and use polished 32-bit pixel art.`;
+
+const RELOAD_ISO_SPRITE_PROMPT = `Create a 4-frame pixel art FIREARM RELOAD animation sprite sheet of this character facing DOWNWARD (toward the camera) in a top-down isometric 3/4 overhead perspective.
+
+Reference images may show the character's firearm. Use the exact same weapon. Arrange the frames in a clean 2x2 grid on a perfectly flat white background.
+
+Frame 1: lower the firearm and reach for its magazine or loading mechanism.
+Frame 2: remove or open the ammunition mechanism.
+Frame 3: insert ammunition or close the mechanism.
+Frame 4: return the firearm to a ready pose.
+
+Do not show enemies, text, UI, floor, or scenery. Preserve the character design and use polished 32-bit pixel art.`;
+
+type SpriteType = AnimationTypeId;
 
 const PROMPTS: Record<SpriteType, string> = {
   walk: WALK_SPRITE_PROMPT,
   jump: JUMP_SPRITE_PROMPT,
   attack: ATTACK_SPRITE_PROMPT,
   idle: IDLE_SPRITE_PROMPT,
+  hurt: HURT_SPRITE_PROMPT,
+  knockdown: KNOCKDOWN_SPRITE_PROMPT,
   "walk-down": WALK_DOWN_SPRITE_PROMPT,
   "walk-up": WALK_UP_SPRITE_PROMPT,
   "walk-side": WALK_SIDE_SPRITE_PROMPT,
@@ -197,6 +260,10 @@ const PROMPTS: Record<SpriteType, string> = {
   "attack-up": ATTACK_UP_SPRITE_PROMPT,
   "attack-side": ATTACK_SIDE_SPRITE_PROMPT,
   "idle-iso": IDLE_ISO_SPRITE_PROMPT,
+  "shoot-down": SHOOT_DOWN_SPRITE_PROMPT,
+  "shoot-up": SHOOT_UP_SPRITE_PROMPT,
+  "shoot-side": SHOOT_SIDE_SPRITE_PROMPT,
+  "reload-iso": RELOAD_ISO_SPRITE_PROMPT,
 };
 
 // GPT Image 2 tends to render the side-scroller walk character facing the
@@ -227,6 +294,8 @@ const ASPECT_RATIOS: Record<SpriteType, AspectRatio> = {
   jump: "1:1",   // 2x2 grid
   attack: "21:9", // 2x2 grid - ultra-wide for big spell effects
   idle: "1:1",   // 2x2 grid
+  hurt: "1:1",
+  knockdown: "16:9",
   "walk-down": "1:1",
   "walk-up": "1:1",
   "walk-side": "1:1",
@@ -234,6 +303,10 @@ const ASPECT_RATIOS: Record<SpriteType, AspectRatio> = {
   "attack-up": "9:16",
   "attack-side": "16:9",
   "idle-iso": "1:1",
+  "shoot-down": "1:1",
+  "shoot-up": "1:1",
+  "shoot-side": "16:9",
+  "reload-iso": "1:1",
 };
 
 export async function POST(request: NextRequest) {

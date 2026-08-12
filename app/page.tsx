@@ -4,8 +4,13 @@ import { useState, useRef, useEffect, useCallback, lazy, Suspense } from "react"
 import CatalogDashboard from "./components/CatalogDashboard";
 import CatalogPlayground from "./components/CatalogPlayground";
 import {
+  animationPackDefinition,
+  animationPacksForMode,
   animationTypeDefinition,
+  animationTypesForMode,
+  animationTypesForPack,
   removeCharacterAnimation as removeAnimationFromSnapshot,
+  type StoredAnimationAsset,
   type AnimationTypeId,
 } from "./lib/animation-catalog";
 import type {
@@ -100,6 +105,7 @@ interface ParallaxLayers {
 
 interface CharacterCatalogSnapshot {
   gameMode: GameMode;
+  tags: string[];
   characterPrompt: string;
   characterImageUrl: string | null;
   spriteSheets: {
@@ -124,6 +130,7 @@ interface CharacterCatalogSnapshot {
     attackUpBackgroundRemoved: string | null;
     attackSideBackgroundRemoved: string | null;
   };
+  animationLibrary: Partial<Record<AnimationTypeId, StoredAnimationAsset>>;
   grids: Record<"walk" | "jump" | "attack" | "idle", {
     cols: number;
     rows: number;
@@ -240,6 +247,7 @@ export default function Home() {
   const [jumpSpriteSheetUrl, setJumpSpriteSheetUrl] = useState<string | null>(null);
   const [attackSpriteSheetUrl, setAttackSpriteSheetUrl] = useState<string | null>(null);
   const [idleSpriteSheetUrl, setIdleSpriteSheetUrl] = useState<string | null>(null);
+  const [animationLibrary, setAnimationLibrary] = useState<Partial<Record<AnimationTypeId, StoredAnimationAsset>>>({});
   const [isGeneratingSpriteSheet, setIsGeneratingSpriteSheet] = useState(false);
 
   // Step 3: Background removal (walk + jump + attack + idle)
@@ -876,10 +884,13 @@ export default function Home() {
     setError(null);
     setRegeneratingSpriteSheet(animationType);
     try {
+      const firearmReference = animationLibrary["shoot-down"]?.cleanedUrl || animationLibrary["shoot-down"]?.sourceUrl;
       const referenceImageUrls =
         (animationType === "attack-up" || animationType === "attack-side") && isoAttackDownUrl
           ? [isoAttackDownUrl]
-          : undefined;
+          : (animationType === "shoot-up" || animationType === "shoot-side" || animationType === "reload-iso") && firearmReference
+            ? [firearmReference]
+            : undefined;
       const response = await fetch("/api/generate-sprite-sheet", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -919,6 +930,11 @@ export default function Home() {
       } else if (animationType === "attack-side") {
         setIsoAttackSideUrl(data.imageUrl);
         setIsoAttackSideBgUrl(null);
+      } else {
+        setAnimationLibrary((current) => ({
+          ...current,
+          [animationType]: { sourceUrl: data.imageUrl, cleanedUrl: null },
+        }));
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : `Failed to generate ${definition.label}`);
@@ -928,6 +944,24 @@ export default function Home() {
   };
 
   const backgroundRemovalTargets = (): BackgroundRemovalTarget[] => {
+    const libraryTargets: BackgroundRemovalTarget[] = animationTypesForMode(gameMode)
+      .filter((definition) => definition.storage === "library")
+      .map((definition) => ({
+        id: definition.id,
+        label: definition.label,
+        sourceUrl: animationLibrary[definition.id]?.sourceUrl || null,
+        cleanedUrl: animationLibrary[definition.id]?.cleanedUrl || null,
+        apply: (result: BackgroundRemovalResult) => {
+          setAnimationLibrary((current) => ({
+            ...current,
+            [definition.id]: {
+              sourceUrl: current[definition.id]?.sourceUrl || null,
+              cleanedUrl: result.imageUrl,
+            },
+          }));
+        },
+      }));
+
     if (gameMode === "side-scroller") {
       return [
         {
@@ -970,6 +1004,7 @@ export default function Home() {
             setIdleSpriteSheetDimensions({ width: result.width, height: result.height });
           },
         },
+        ...libraryTargets,
       ];
     }
 
@@ -1046,6 +1081,7 @@ export default function Home() {
           setIsoAttackSideDimensions({ width: result.width, height: result.height });
         },
       },
+      ...libraryTargets,
     ];
   };
 
@@ -1751,6 +1787,7 @@ export default function Home() {
 
   const createCharacterCatalogSnapshot = (): CharacterCatalogSnapshot => ({
     gameMode,
+    tags: [gameMode],
     characterPrompt,
     characterImageUrl,
     spriteSheets: {
@@ -1775,6 +1812,7 @@ export default function Home() {
       attackUpBackgroundRemoved: isoAttackUpBgUrl,
       attackSideBackgroundRemoved: isoAttackSideBgUrl,
     },
+    animationLibrary,
     grids: {
       walk: { cols: walkGridCols, rows: walkGridRows, vertical: walkVerticalDividers, horizontal: walkHorizontalDividers, dimensions: walkSpriteSheetDimensions },
       jump: { cols: jumpGridCols, rows: jumpGridRows, vertical: jumpVerticalDividers, horizontal: jumpHorizontalDividers, dimensions: jumpSpriteSheetDimensions },
@@ -1885,6 +1923,7 @@ export default function Home() {
     const sprites = raw.spriteSheets || {} as CharacterCatalogSnapshot["spriteSheets"];
     const removed = raw.backgroundRemoved || {} as CharacterCatalogSnapshot["backgroundRemoved"];
     const iso = raw.isometric || {} as CharacterCatalogSnapshot["isometric"];
+    const savedAnimationLibrary = raw.animationLibrary || {};
     const grids = raw.grids || {} as CharacterCatalogSnapshot["grids"];
     const safeUrl = (value: unknown) => typeof value === "string" ? value : null;
     const safeNumber = (value: unknown, fallback: number) =>
@@ -1944,6 +1983,18 @@ export default function Home() {
     setIsoAttackDownBgUrl(safeUrl(iso.attackDownBackgroundRemoved));
     setIsoAttackUpBgUrl(safeUrl(iso.attackUpBackgroundRemoved));
     setIsoAttackSideBgUrl(safeUrl(iso.attackSideBackgroundRemoved));
+    setAnimationLibrary(
+      Object.fromEntries(
+        Object.entries(savedAnimationLibrary).flatMap(([id, value]) => {
+          if (!value || typeof value !== "object") return [];
+          const asset = value as Partial<StoredAnimationAsset>;
+          return [[id, {
+            sourceUrl: safeUrl(asset.sourceUrl),
+            cleanedUrl: safeUrl(asset.cleanedUrl),
+          }]];
+        })
+      ) as Partial<Record<AnimationTypeId, StoredAnimationAsset>>
+    );
     setWalkGridCols(walkGrid.cols); setWalkGridRows(walkGrid.rows); setWalkSpriteSheetDimensions(walkGrid.dimensions);
     setJumpGridCols(jumpGrid.cols); setJumpGridRows(jumpGrid.rows); setJumpSpriteSheetDimensions(jumpGrid.dimensions);
     setAttackGridCols(attackGrid.cols); setAttackGridRows(attackGrid.rows); setAttackSpriteSheetDimensions(attackGrid.dimensions);
@@ -1962,8 +2013,17 @@ export default function Home() {
       setIdleVerticalDividers(idleGrid.vertical); setIdleHorizontalDividers(idleGrid.horizontal);
     }, 0);
 
-    const hasSprites = Boolean(nextWalk || nextJump || nextAttack || nextIdle);
-    const hasRemoved = Boolean(nextWalkRemoved || nextJumpRemoved || nextAttackRemoved || nextIdleRemoved);
+    const savedLibraryAssets = Object.values(savedAnimationLibrary).filter(
+      (value): value is StoredAnimationAsset => Boolean(value && typeof value === "object")
+    );
+    const hasSprites = Boolean(
+      nextWalk || nextJump || nextAttack || nextIdle ||
+      savedLibraryAssets.some((asset) => safeUrl(asset.sourceUrl))
+    );
+    const hasRemoved = Boolean(
+      nextWalkRemoved || nextJumpRemoved || nextAttackRemoved || nextIdleRemoved ||
+      savedLibraryAssets.some((asset) => safeUrl(asset.cleanedUrl))
+    );
     setCompletedSteps(new Set([
       ...(nextCharacterUrl ? [1] : []),
       ...(hasSprites ? [2] : []),
@@ -2083,6 +2143,7 @@ export default function Home() {
     setJumpSpriteSheetUrl(null);
     setAttackSpriteSheetUrl(null);
     setIdleSpriteSheetUrl(null);
+    setAnimationLibrary({});
     setWalkBgRemovedUrl(null);
     setJumpBgRemovedUrl(null);
     setAttackBgRemovedUrl(null);
@@ -2603,10 +2664,33 @@ export default function Home() {
           {requestedAnimationType && animationTypeDefinition(requestedAnimationType).mode === gameMode && (
             <div className="requested-animation-panel">
               <div>
-                <span>Selected from Animation Types</span>
+                <span>{animationPackDefinition(animationTypeDefinition(requestedAnimationType).packId).label}</span>
                 <strong>{animationTypeDefinition(requestedAnimationType).label}</strong>
                 <small>{animationTypeDefinition(requestedAnimationType).description} Save the character after generation to update the catalog.</small>
               </div>
+              {currentBackgroundTargets.find((target) => target.id === requestedAnimationType)?.sourceUrl && (
+                <div className="requested-animation-preview">
+                  <img
+                    src={
+                      currentBackgroundTargets.find((target) => target.id === requestedAnimationType)?.cleanedUrl ||
+                      currentBackgroundTargets.find((target) => target.id === requestedAnimationType)?.sourceUrl ||
+                      ""
+                    }
+                    alt=""
+                  />
+                  <button
+                    className="btn btn-transparency"
+                    onClick={() => void removeAnimationBackground(requestedAnimationType)}
+                    disabled={removingBackgroundTypes.has(requestedAnimationType) || regeneratingSpriteSheet !== null}
+                  >
+                    {removingBackgroundTypes.has(requestedAnimationType)
+                      ? "Removing..."
+                      : currentBackgroundTargets.find((target) => target.id === requestedAnimationType)?.cleanedUrl
+                        ? "Remove again"
+                        : "Remove background"}
+                  </button>
+                </div>
+              )}
               <button
                 className="btn btn-primary"
                 onClick={() => void generateCatalogAnimation(requestedAnimationType)}
@@ -2618,6 +2702,49 @@ export default function Home() {
               </button>
             </div>
           )}
+
+          <section className="character-pack-browser">
+            <div className="character-pack-browser-heading">
+              <div>
+                <span>Compatible animation packs</span>
+                <strong>{gameMode === "isometric" ? "Isometric character packs" : "Side-scroller character packs"}</strong>
+              </div>
+              <small>Packs are matched by the character&apos;s {gameMode} tag.</small>
+            </div>
+            <div className="character-pack-grid">
+              {animationPacksForMode(gameMode).map((pack) => (
+                <article className={`character-pack-card ${pack.accent}`} key={pack.id}>
+                  <div className="character-pack-card-heading">
+                    <div><strong>{pack.label}</strong><small>{pack.description}</small></div>
+                    <span>{animationTypesForPack(pack.id).length}</span>
+                  </div>
+                  <div className="animation-pack-tags">
+                    {pack.tags.map((tag) => <span key={tag}>#{tag}</span>)}
+                  </div>
+                  <div className="character-pack-actions">
+                    {animationTypesForPack(pack.id).map((definition) => {
+                      const target = currentBackgroundTargets.find((item) => item.id === definition.id);
+                      const generated = Boolean(target?.sourceUrl);
+                      return (
+                        <button
+                          key={definition.id}
+                          className={requestedAnimationType === definition.id ? "selected" : ""}
+                          disabled={regeneratingSpriteSheet !== null || isGeneratingSpriteSheet || isRemovingBg}
+                          onClick={() => {
+                            setRequestedAnimationType(definition.id);
+                            void generateCatalogAnimation(definition.id);
+                          }}
+                        >
+                          <span>{generated ? "✓" : "+"}</span>
+                          <div><strong>{definition.label}</strong><small>{generated ? "Generate replacement" : "Add and generate"}</small></div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
 
           {gameMode === "isometric" ? (
             <>
