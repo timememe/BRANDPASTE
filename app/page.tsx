@@ -1121,6 +1121,15 @@ export default function Home() {
     }
   };
 
+  const removeAddedAnimation = (animationType: AnimationTypeId) => {
+    if (animationTypeDefinition(animationType).storage !== "library") return;
+    setAnimationLibrary((current) => {
+      const next = { ...current };
+      delete next[animationType];
+      return next;
+    });
+  };
+
   const removeAvailableBackgrounds = async () => {
     const targets = backgroundRemovalTargets().filter(
       (target) => target.sourceUrl && !target.cleanedUrl
@@ -2223,6 +2232,16 @@ export default function Home() {
   const generatedBackgroundTargets = currentBackgroundTargets.filter((target) => target.sourceUrl);
   const pendingBackgroundTargets = generatedBackgroundTargets.filter((target) => !target.cleanedUrl);
   const cleanedBackgroundTargets = generatedBackgroundTargets.filter((target) => target.cleanedUrl);
+  const addedAnimationPackGroups = animationPacksForMode(gameMode)
+    .map((pack) => ({
+      pack,
+      animations: animationTypesForPack(pack.id).flatMap((definition) => {
+        if (definition.storage !== "library") return [];
+        const asset = animationLibrary[definition.id];
+        return asset?.sourceUrl ? [{ definition, asset }] : [];
+      }),
+    }))
+    .filter((group) => group.animations.length > 0);
   const activeWorldPrompt = worldPrompt.trim() || (creatorIntent !== "world" ? characterPrompt.trim() : "");
 
   return (
@@ -2919,6 +2938,76 @@ export default function Home() {
                 );
               })}
             </div>
+          )}
+
+          {addedAnimationPackGroups.length > 0 && (
+            <section className="added-animation-packs">
+              <div className="added-animation-packs-heading">
+                <span>Added animation packs</span>
+                <strong>Pack animations saved on this character</strong>
+              </div>
+              {addedAnimationPackGroups.map(({ pack, animations }) => (
+                <section className={`added-animation-pack ${pack.accent}`} key={pack.id}>
+                  <div className="added-animation-pack-heading">
+                    <div>
+                      <strong>{pack.label}</strong>
+                      <small>{pack.description}</small>
+                    </div>
+                    <span>{animations.length} added</span>
+                  </div>
+                  <div className="animation-pack-tags">
+                    {pack.tags.map((tag) => <span key={tag}>#{tag}</span>)}
+                  </div>
+                  <div className="added-animation-grid">
+                    {animations.map(({ definition, asset }) => {
+                      const displayUrl = asset.cleanedUrl || asset.sourceUrl || "";
+                      const isCleaning = removingBackgroundTypes.has(definition.id);
+                      return (
+                        <article className="sprite-sheet-card" key={definition.id}>
+                          <div className="sprite-sheet-card-heading">
+                            <h4>{definition.label} ({definition.frames} frames)</h4>
+                            {asset.cleanedUrl && <span>Transparent</span>}
+                          </div>
+                          <div
+                            className="image-preview"
+                            style={{ margin: 0, opacity: regeneratingSpriteSheet === definition.id ? 0.5 : 1 }}
+                          >
+                            <img src={displayUrl} alt={`${definition.label} sprite sheet`} />
+                          </div>
+                          <div className="sprite-sheet-actions sprite-sheet-pack-actions">
+                            <button
+                              className="btn btn-secondary"
+                              onClick={() => {
+                                setRequestedAnimationType(definition.id);
+                                void generateCatalogAnimation(definition.id);
+                              }}
+                              disabled={isGeneratingSpriteSheet || regeneratingSpriteSheet !== null || isRemovingBg}
+                            >
+                              {regeneratingSpriteSheet === definition.id ? "Generating..." : "Regenerate"}
+                            </button>
+                            <button
+                              className="btn btn-transparency"
+                              onClick={() => void removeAnimationBackground(definition.id)}
+                              disabled={isGeneratingSpriteSheet || regeneratingSpriteSheet !== null || isCleaning}
+                            >
+                              {isCleaning ? "Removing..." : asset.cleanedUrl ? "Remove again" : "Remove background"}
+                            </button>
+                            <button
+                              className="btn btn-remove-animation"
+                              onClick={() => removeAddedAnimation(definition.id)}
+                              disabled={isGeneratingSpriteSheet || regeneratingSpriteSheet !== null || isRemovingBg}
+                              aria-label={`Remove ${definition.label} from character`}
+                            >
+                              Remove from character
+                            </button>
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                </section>
+              ))}
+            </section>
           )}
 
           {(isGeneratingSpriteSheet || regeneratingSpriteSheet) && (

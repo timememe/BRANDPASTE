@@ -2128,6 +2128,122 @@ input, textarea {
   line-height: 1.25;
 }
 
+.added-animation-packs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  margin: 1.35rem 0 1rem;
+}
+
+.added-animation-packs-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.added-animation-packs-heading span {
+  color: var(--fal-purple-light);
+  font-size: 0.6rem;
+  font-weight: 750;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.added-animation-packs-heading strong {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.added-animation-pack {
+  position: relative;
+  overflow: hidden;
+  padding: 0.8rem;
+  background: rgba(255, 255, 255, 0.015);
+  border: 1px solid var(--border-color);
+  border-radius: 9px;
+}
+
+.added-animation-pack::before {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 2px;
+  background: var(--fal-purple);
+  content: "";
+}
+
+.added-animation-pack.red::before {
+  background: #e26578;
+}
+
+.added-animation-pack.amber::before {
+  background: #d6a447;
+}
+
+.added-animation-pack.cyan::before {
+  background: #38acc6;
+}
+
+.added-animation-pack-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.added-animation-pack-heading > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.18rem;
+}
+
+.added-animation-pack-heading strong {
+  color: var(--text-primary);
+  font-size: 0.82rem;
+}
+
+.added-animation-pack-heading small {
+  color: var(--text-tertiary);
+  font-size: 0.62rem;
+  line-height: 1.4;
+}
+
+.added-animation-pack-heading > span {
+  flex: 0 0 auto;
+  padding: 0.2rem 0.4rem;
+  color: var(--fal-purple-light);
+  background: rgba(129, 92, 246, 0.08);
+  border: 1px solid rgba(129, 92, 246, 0.24);
+  border-radius: 999px;
+  font-size: 0.56rem;
+  font-weight: 700;
+}
+
+.added-animation-pack > .animation-pack-tags {
+  margin: 0.55rem 0 0.7rem;
+}
+
+.added-animation-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.sprite-sheet-pack-actions .btn-remove-animation {
+  grid-column: 1 / -1;
+  color: #e99aa5;
+  background: rgba(226, 101, 120, 0.05);
+  border: 1px solid rgba(226, 101, 120, 0.18);
+}
+
+.sprite-sheet-pack-actions .btn-remove-animation:hover:not(:disabled) {
+  color: #ffd6dc;
+  background: rgba(226, 101, 120, 0.12);
+  border-color: rgba(226, 101, 120, 0.42);
+}
+
 .btn-transparency {
   color: #b9f3ff;
   background: rgba(56, 172, 198, 0.07);
@@ -2651,6 +2767,14 @@ input, textarea {
 
   .character-pack-grid {
     grid-template-columns: 1fr;
+  }
+
+  .added-animation-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .added-animation-pack-heading {
+    flex-direction: column;
   }
 
   .character-pack-browser-heading {
